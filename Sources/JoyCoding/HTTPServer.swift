@@ -23,8 +23,21 @@ final class HTTPServer: ObservableObject {
         do {
             let params = NWParameters.tcp
             params.allowLocalEndpointReuse = true
-            let l = try NWListener(using: params,
-                                   on: NWEndpoint.Port(rawValue: UInt16(cfg.httpPort))!)
+
+            // httpInterface 一直是个死配置 —— 定义了但没人读, 服务器始终监听
+            // 全部网卡。"selected" 时只绑用户在上面选中的那个地址, 其余网段
+            // 连端口都看不到(比如只对 Tailscale 开放, 不暴露给整个局域网)。
+            let port = NWEndpoint.Port(rawValue: UInt16(cfg.httpPort))!
+            let l: NWListener
+            if cfg.httpInterface == "selected",
+               let ip = NetAddresses.resolve(preferred: cfg.remoteAddress)?.ip {
+                // 绑定特定地址时只能走 requiredLocalEndpoint。再传 on: port
+                // 会和它冲突, 监听器直接起不来(实测端口上什么都没有)。
+                params.requiredLocalEndpoint = .hostPort(host: .init(ip), port: port)
+                l = try NWListener(using: params)
+            } else {
+                l = try NWListener(using: params, on: port)
+            }
             l.newConnectionHandler = { [weak self] conn in self?.accept(conn) }
             l.stateUpdateHandler = { [weak self] state in
                 DispatchQueue.main.async {
@@ -63,25 +76,46 @@ final class HTTPServer: ObservableObject {
 
     private func accept(_ conn: NWConnection) {
         conn.start(queue: .global(qos: .userInitiated))
-        conn.receive(minimumIncompleteLength: 1, maximumLength: 8192) { data, _, _, _ in
-            let request = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-            let path = HTTPServer.parsePath(request)
-            let cookie = HTTPServer.parseCookie(request)
-            let (body, ctype, status, setCookie) = self.handle(path, cookie: cookie)
-            // 图标是二进制 PNG, 所以响应体统一走 Data
-            let head = """
-            HTTP/1.1 \(status) \(status == 200 ? "OK" : "Error")\r
-            Content-Type: \(ctype)\r
-            Content-Length: \(body.count)\r
-            Cache-Control: \(ctype.hasPrefix("image") ? "max-age=86400" : "no-store")\r
-            \(setCookie)Connection: close\r
-            \r
+        readRequest(conn, buffer: Data())
+    }
 
-            """
-            var out = Data(head.utf8)
-            out.append(body)
-            conn.send(content: out, completion: .contentProcessed { _ in conn.cancel() })
+    /// 一次 receive 只保证"有字节就返回", 不保证请求头收全了。
+    /// Wi-Fi 上请求头被拆成两个 TCP 段是常事 —— 第一段只有请求行、没有 Cookie,
+    /// 于是被当成没配对, 手机偶发掉回配对页。所以要读到头结束为止。
+    private func readRequest(_ conn: NWConnection, buffer: Data) {
+        conn.receive(minimumIncompleteLength: 1, maximumLength: 8192) { data, _, done, err in
+            var buf = buffer
+            if let d = data { buf.append(d) }
+
+            let headerEnd = Data("\r\n\r\n".utf8)
+            let gotHeaders = buf.range(of: headerEnd) != nil
+            // 64K 上限: 不让对端拿一个永不结束的请求把内存撑爆
+            if !gotHeaders && !done && err == nil && buf.count < 64 * 1024 {
+                self.readRequest(conn, buffer: buf)
+                return
+            }
+            guard !buf.isEmpty else { conn.cancel(); return }
+            self.respond(conn, request: String(decoding: buf, as: UTF8.self))
         }
+    }
+
+    private func respond(_ conn: NWConnection, request: String) {
+        let path = HTTPServer.parsePath(request)
+        let cookie = HTTPServer.parseCookie(request)
+        let (body, ctype, status, setCookie) = self.handle(path, cookie: cookie)
+        // 图标是二进制 PNG, 所以响应体统一走 Data
+        let head = """
+        HTTP/1.1 \(status) \(status == 200 ? "OK" : "Error")\r
+        Content-Type: \(ctype)\r
+        Content-Length: \(body.count)\r
+        Cache-Control: \(ctype.hasPrefix("image") ? "max-age=86400" : "no-store")\r
+        \(setCookie)Connection: close\r
+        \r
+
+        """
+        var out = Data(head.utf8)
+        out.append(body)
+        conn.send(content: out, completion: .contentProcessed { _ in conn.cancel() })
     }
 
     /// 取 Cookie 里的 joycoding=<token>
@@ -155,18 +189,27 @@ final class HTTPServer: ObservableObject {
     }
 
     /// 配对: /pair/<6位码> 对上就下发 Cookie
+    /// 拼 JSON 字面量。直接插值的话中文里的引号会把 JSON 打断,
+    /// 而且不加引号本身就已经不是合法 JSON 了 —— 手机端 r.json() 抛异常,
+    /// 落进 catch 显示"连不上 Mac", 把"配对码不对"这个真实原因盖掉。
+    private func jsonStr(_ v: String) -> String {
+        guard let d = try? JSONSerialization.data(withJSONObject: [v]),
+              let a = String(data: d, encoding: .utf8) else { return "\"\"" }
+        return String(a.dropFirst().dropLast())
+    }
+
     private func handlePair(_ comps: [String], cfg: Config) -> (Data, String, Int, String) {
         guard comps.count > 1, comps[0] == "pair" else {
             return txt(RemoteUI.pairPage(), "text/html; charset=utf-8")
         }
         if Date() < pairLockUntil {
-            return txt("{\"ok\":false,\"msg\":\(L("尝试过多，请稍后再试"))}",
+            return txt("{\"ok\":false,\"msg\":\(jsonStr(L("尝试过多，请稍后再试")))}",
                        "application/json; charset=utf-8")
         }
         guard comps[1] == cfg.pairCode else {
             pairFails += 1
             if pairFails >= 5 { pairLockUntil = Date().addingTimeInterval(60); pairFails = 0 }
-            return txt("{\"ok\":false,\"msg\":\(L("配对码不对"))}",
+            return txt("{\"ok\":false,\"msg\":\(jsonStr(L("配对码不对")))}",
                        "application/json; charset=utf-8")
         }
         pairFails = 0

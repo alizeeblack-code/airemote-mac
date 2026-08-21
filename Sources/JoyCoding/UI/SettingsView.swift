@@ -346,6 +346,13 @@ struct RemoteView: View {
                         }
                         Text(baseURL)
                             .font(.system(.body, design: .monospaced)).textSelection(.enabled)
+                        if addresses.count > 1 {
+                            Toggle(L("只监听选中的这个地址"), isOn: Binding(
+                                get: { store.config.httpInterface == "selected" },
+                                set: { store.config.httpInterface = $0 ? "selected" : "all" }))
+                                .onChange(of: store.config.httpInterface) { _ in http.restart() }
+                                .help(L("ifaceHint"))
+                        }
                         Divider()
                         Text(L("配对码")).font(.subheadline).foregroundStyle(.secondary)
                         Text(store.config.pairCode)

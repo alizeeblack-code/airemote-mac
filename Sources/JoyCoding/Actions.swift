@@ -271,6 +271,13 @@ enum Actions {
     private static var pttWatchdog: Timer?
 
     static func pttStart() {
+        // 保险丝用的是 Timer, 它挂在【当前线程】的 run loop 上。手机接口是在
+        // Network.framework 的后台队列里直接调过来的, 那个线程没有 run loop,
+        // Timer 于是永远不触发 —— 手机中途掉线就会让修饰键永久卡住。
+        // 在源头收敛线程, 这样任何调用方都安全。
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { pttStart() }; return
+        }
         let cfg = ConfigStore.shared.config
         guard cfg.pttStyle == "hold" else {
             KeySynth.keyStroke(cfg.pttMods, cfg.pttKey); return
@@ -285,6 +292,9 @@ enum Actions {
     }
 
     static func pttStop() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { pttStop() }; return
+        }
         let cfg = ConfigStore.shared.config
         switch cfg.pttStyle {
         case "hold":

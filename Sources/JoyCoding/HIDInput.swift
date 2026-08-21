@@ -33,7 +33,8 @@ final class HIDInput: ObservableObject {
     @Published private(set) var inputCount = 0
 
     private var manager: IOHIDManager?
-    private var lastButton: [Int: Int] = [:]
+    // 两只手柄都有 1 号键。只按按键号记状态的话, 一只会吞掉另一只的事件。
+    private var lastButton: [String: Int] = [:]   // "设备#键号"
     private var lastHat: [String: Int?] = [:]   // 通道 -> 上次方向
     /// 走原始报告解析的设备。这些设备的标准 HID 元素不再上报,
     /// 也不能让元素路径和原始路径同时派发, 否则会触发两次。
@@ -41,12 +42,12 @@ final class HIDInput: ObservableObject {
     private var rawButtons: [String: Set<Int>] = [:]
 
     // 手势状态
-    private var pressTime: [Int: Date] = [:]
-    private var longTimers: [Int: Timer] = [:]
-    private var longFired: Set<Int> = []
-    private var pendingTap: [Int: Timer] = [:]
+    private var pressTime: [String: Date] = [:]
+    private var longTimers: [String: Timer] = [:]
+    private var longFired: Set<String> = []
+    private var pendingTap: [String: Timer] = [:]
     private var repeatTimer: Timer?
-    private var repeatButton: Int?
+    private var repeatButton: String?
 
     private let doubleWindow: TimeInterval = 0.28
     private let longDelay: TimeInterval = 0.45
@@ -150,21 +151,19 @@ final class HIDInput: ObservableObject {
         // 摇杆走帽子开关, 逻辑范围 0...7, 越界即回中
         if page == UInt32(kHIDPage_GenericDesktop) && usage == 0x39 {
             let dir = (v >= 0 && v <= 7) ? v : nil
-            if lastHat[StickChannel.hat.rawValue] ?? -1 == dir { return }
-            lastHat[StickChannel.hat.rawValue] = dir
-            let devID = (IOHIDDeviceGetProperty(dev, kIOHIDVendorIDKey as CFString) as? Int)
-                .flatMap { v0 in (IOHIDDeviceGetProperty(dev, kIOHIDProductIDKey as CFString) as? Int)
-                    .map { DeviceProfile.key(v0, $0) } } ?? ""
+            let devID = HIDInput.deviceKey(dev)
+            let hk = "\(devID)/\(StickChannel.hat.rawValue)"   // 和 injectRaw 同一格式
+            if lastHat[hk] ?? -1 == dir { return }
+            lastHat[hk] = dir
             DispatchQueue.main.async { self.onHat(dir, device: devID, ch: .hat) }
             return
         }
 
         guard page == UInt32(kHIDPage_Button) else { return }
-        if lastButton[usage] == v { return }        // 去抖
-        lastButton[usage] = v
-        let devID = (IOHIDDeviceGetProperty(dev, kIOHIDVendorIDKey as CFString) as? Int)
-            .flatMap { v0 in (IOHIDDeviceGetProperty(dev, kIOHIDProductIDKey as CFString) as? Int)
-                .map { DeviceProfile.key(v0, $0) } } ?? ""
+        let devID = HIDInput.deviceKey(dev)
+        let bk = "\(devID)#\(usage)"
+        if lastButton[bk] == v { return }           // 去抖(按设备分开)
+        lastButton[bk] = v
         DispatchQueue.main.async { self.onButton(usage, down: v == 1, device: devID) }
     }
 
@@ -175,6 +174,13 @@ final class HIDInput: ObservableObject {
     }
 
     /// 按设备 id 取配置 —— 两只手柄同时连着时各用各的
+    static func deviceKey(_ dev: IOHIDDevice) -> String {
+        guard let v = IOHIDDeviceGetProperty(dev, kIOHIDVendorIDKey as CFString) as? Int,
+              let p = IOHIDDeviceGetProperty(dev, kIOHIDProductIDKey as CFString) as? Int
+        else { return "" }
+        return DeviceProfile.key(v, p)
+    }
+
     private func profile(_ id: String) -> DeviceProfile? {
         ConfigStore.shared.config.devices.first { $0.id == id }
     }
@@ -219,35 +225,36 @@ final class HIDInput: ObservableObject {
             return
         }
 
+        let k = "\(device)#\(n)"
         if down {
-            pressTime[n] = Date()
-            longFired.remove(n)
+            pressTime[k] = Date()
+            longFired.remove(k)
 
             if let long = b.long {
-                longTimers[n] = Timer.scheduledTimer(withTimeInterval: longDelay, repeats: false) { _ in
-                    self.longFired.insert(n)
+                longTimers[k] = Timer.scheduledTimer(withTimeInterval: longDelay, repeats: false) { _ in
+                    self.longFired.insert(k)
                     Actions.run(long)
                 }
             } else if let tap = b.tap, b.double == nil, Actions.isRepeatable(tap) {
                 // 没绑长按才连发, 否则两者会打架
-                startRepeat(n, tap)
+                startRepeat(k, tap)
             }
         } else {
-            longTimers[n]?.invalidate(); longTimers[n] = nil
-            stopRepeat(n)
-            if longFired.contains(n) { longFired.remove(n); return }
+            longTimers[k]?.invalidate(); longTimers[k] = nil
+            stopRepeat(k)
+            if longFired.contains(k) { longFired.remove(k); return }
 
             guard let tap = b.tap else { return }
 
             guard b.double != nil else { Actions.run(tap); return }
 
             // 绑了双击才需要等 —— 否则每次单击都白白多等 0.28 秒
-            if let pending = pendingTap[n] {
-                pending.invalidate(); pendingTap[n] = nil
+            if let pending = pendingTap[k] {
+                pending.invalidate(); pendingTap[k] = nil
                 Actions.run(b.double!)
             } else {
-                pendingTap[n] = Timer.scheduledTimer(withTimeInterval: doubleWindow, repeats: false) { _ in
-                    self.pendingTap[n] = nil
+                pendingTap[k] = Timer.scheduledTimer(withTimeInterval: doubleWindow, repeats: false) { _ in
+                    self.pendingTap[k] = nil
                     Actions.run(tap)
                 }
             }
@@ -255,8 +262,8 @@ final class HIDInput: ObservableObject {
     }
 
     /// 长按连发, 和键盘重复一个手感
-    private func startRepeat(_ n: Int, _ action: String) {
-        repeatButton = n
+    private func startRepeat(_ key: String, _ action: String) {
+        repeatButton = key
         repeatTimer?.invalidate()
         repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
             self.repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { _ in
@@ -265,8 +272,8 @@ final class HIDInput: ObservableObject {
         }
     }
 
-    private func stopRepeat(_ n: Int) {
-        guard repeatButton == n else { return }
+    private func stopRepeat(_ key: String) {
+        guard repeatButton == key else { return }
         repeatTimer?.invalidate(); repeatTimer = nil; repeatButton = nil
     }
 
@@ -283,7 +290,7 @@ final class HIDInput: ObservableObject {
               let action = p.stickAction(ch, dir: key, app: AppContext.shared.frontBundle)
         else { return }
         Actions.run(action)
-        repeatButton = -1
+        repeatButton = "\(device)#hat"
         repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
             self.repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { _ in
                 Actions.run(action)
