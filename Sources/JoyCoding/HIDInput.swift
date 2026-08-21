@@ -1,0 +1,306 @@
+import Foundation
+import IOKit.hid
+import Combine
+
+struct ConnectedDevice: Identifiable, Equatable {
+    let vendorID: Int
+    let productID: Int
+    let name: String
+    var id: String { DeviceProfile.key(vendorID, productID) }
+}
+
+/// 原始输入, 给 GUI 的"按一下要绑的键"用
+enum RawInput: Equatable {
+    case button(Int, down: Bool)
+    case hat(Int?, StickChannel)
+}
+
+/// 手柄输入层。按 HID 用途匹配而不是写死厂商 —— Joy-Con / PS / Xbox / 8BitDo
+/// 上报的都是 usagePage=1(GenericDesktop) + usage=5(GamePad) 或 4(Joystick)。
+final class HIDInput: ObservableObject {
+    static let shared = HIDInput()
+
+    @Published private(set) var devices: [ConnectedDevice] = []
+    /// 旁观者: 界面用来实时点亮按下的键。【绝不拦截】动作派发 ——
+    /// 早期版本把它做成拦截式的, 结果一打开设置页手柄就在所有地方失效了。
+    var previewHandler: ((RawInput) -> Void)?
+    /// 拦截式: 只在"学习摇杆方向"时设上, 期间摇杆不触发动作
+    var captureHandler: ((RawInput) -> Void)?
+    /// 排查用: 最后一次收到的输入, 不管来自哪只手柄
+    @Published private(set) var lastInput = "还没收到任何输入"
+    /// 排查用: 按键走到哪一步了
+    @Published private(set) var lastDispatch = "—"
+    @Published private(set) var inputCount = 0
+
+    private var manager: IOHIDManager?
+    private var lastButton: [Int: Int] = [:]
+    private var lastHat: [String: Int?] = [:]   // 通道 -> 上次方向
+    /// 走原始报告解析的设备。这些设备的标准 HID 元素不再上报,
+    /// 也不能让元素路径和原始路径同时派发, 否则会触发两次。
+    private var rawDevices: Set<String> = []
+    private var rawButtons: [String: Set<Int>] = [:]
+
+    // 手势状态
+    private var pressTime: [Int: Date] = [:]
+    private var longTimers: [Int: Timer] = [:]
+    private var longFired: Set<Int> = []
+    private var pendingTap: [Int: Timer] = [:]
+    private var repeatTimer: Timer?
+    private var repeatButton: Int?
+
+    private let doubleWindow: TimeInterval = 0.28
+    private let longDelay: TimeInterval = 0.45
+
+    private init() {}
+
+    // MARK: - 启动
+
+    func start() {
+        let mgr = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
+        manager = mgr
+
+        IOHIDManagerSetDeviceMatchingMultiple(mgr, [
+            [kIOHIDDeviceUsagePageKey: 0x01, kIOHIDDeviceUsageKey: 0x05],   // GamePad
+            [kIOHIDDeviceUsagePageKey: 0x01, kIOHIDDeviceUsageKey: 0x04],   // Joystick
+        ] as CFArray)
+
+        let ctx = Unmanaged.passUnretained(self).toOpaque()
+
+        IOHIDManagerRegisterInputValueCallback(mgr, { ctx, _, _, value in
+            guard let ctx else { return }
+            Unmanaged<HIDInput>.fromOpaque(ctx).takeUnretainedValue().handle(value)
+        }, ctx)
+
+        IOHIDManagerRegisterDeviceMatchingCallback(mgr, { ctx, _, _, _ in
+            guard let ctx else { return }
+            let s = Unmanaged<HIDInput>.fromOpaque(ctx).takeUnretainedValue()
+            DispatchQueue.main.async { s.refreshDevices() }
+        }, ctx)
+
+        IOHIDManagerRegisterDeviceRemovalCallback(mgr, { ctx, _, _, _ in
+            guard let ctx else { return }
+            let s = Unmanaged<HIDInput>.fromOpaque(ctx).takeUnretainedValue()
+            DispatchQueue.main.async { s.refreshDevices() }
+        }, ctx)
+
+        IOHIDManagerScheduleWithRunLoop(mgr, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
+        // 非独占打开: 别的程序(比如系统的手柄框架)也能同时读, 不互相踢
+        IOHIDManagerOpen(mgr, IOOptionBits(kIOHIDOptionsTypeNone))
+        refreshDevices()
+    }
+
+    /// 新设备第一次接上时套用内置默认配置。已有配置的绝不覆盖 ——
+    /// 用户改过的东西不能被"默认值"冲掉。
+    static func seedDefaults(_ d: ConnectedDevice) {
+        let store = ConfigStore.shared
+        guard !store.config.devices.contains(where: { $0.id == d.id }),
+              var p = DefaultProfiles.make(vendor: d.vendorID, product: d.productID, name: d.name)
+        else { return }
+        p.productID = d.productID       // PS 系列产品号不止一个, 用实际连上的
+        store.config.devices.append(p)
+        store.save()
+        NSLog("[JoyCoding] 为 \(d.name) 套用了内置默认配置")
+    }
+
+    private func refreshDevices() {
+        guard let mgr = manager,
+              let set = IOHIDManagerCopyDevices(mgr) as? Set<IOHIDDevice> else {
+            devices = []; return
+        }
+        let found: [ConnectedDevice] = set.compactMap { d in
+            guard let v = IOHIDDeviceGetProperty(d, kIOHIDVendorIDKey as CFString) as? Int,
+                  let p = IOHIDDeviceGetProperty(d, kIOHIDProductIDKey as CFString) as? Int
+            else { return nil }
+            let n = IOHIDDeviceGetProperty(d, kIOHIDProductKey as CFString) as? String ?? "手柄"
+            let dev = ConnectedDevice(vendorID: v, productID: p, name: n)
+            JoyConBattery.shared.attach(d, id: dev.id)
+            HIDInput.seedDefaults(dev)
+            return dev
+        }.sorted { $0.name < $1.name }
+
+        for gone in devices where !found.contains(gone) { JoyConBattery.shared.detach(id: gone.id) }
+        devices = found
+    }
+
+    // MARK: - 事件分发
+
+    private func handle(_ value: IOHIDValue) {
+        let elem = IOHIDValueGetElement(value)
+        let page = IOHIDElementGetUsagePage(elem)
+        let usage = Int(IOHIDElementGetUsage(elem))
+        let v = Int(IOHIDValueGetIntegerValue(value))
+
+        // 来自哪只手柄。只记真实输入 —— 厂商页上那些 0x21 子命令回复是
+        // 电量轮询的产物, 混在里面会盖掉真正的按键记录。
+        let dev = IOHIDElementGetDevice(elem)
+        let name = IOHIDDeviceGetProperty(dev, kIOHIDProductKey as CFString) as? String ?? "?"
+        if page == UInt32(kHIDPage_Button) || page == UInt32(kHIDPage_GenericDesktop) {
+            DispatchQueue.main.async {
+                self.inputCount += 1
+                self.lastInput = "#\(self.inputCount) \(name) page=0x\(String(page, radix: 16)) "
+                    + "usage=\(usage) v=\(v)"
+            }
+        }
+        if let v = IOHIDDeviceGetProperty(dev, kIOHIDVendorIDKey as CFString) as? Int,
+           let pid = IOHIDDeviceGetProperty(dev, kIOHIDProductIDKey as CFString) as? Int,
+           rawDevices.contains(DeviceProfile.key(v, pid)) {
+            return      // 这只手柄走原始报告, 元素事件丢弃
+        }
+
+        // 摇杆走帽子开关, 逻辑范围 0...7, 越界即回中
+        if page == UInt32(kHIDPage_GenericDesktop) && usage == 0x39 {
+            let dir = (v >= 0 && v <= 7) ? v : nil
+            if lastHat[StickChannel.hat.rawValue] ?? -1 == dir { return }
+            lastHat[StickChannel.hat.rawValue] = dir
+            let devID = (IOHIDDeviceGetProperty(dev, kIOHIDVendorIDKey as CFString) as? Int)
+                .flatMap { v0 in (IOHIDDeviceGetProperty(dev, kIOHIDProductIDKey as CFString) as? Int)
+                    .map { DeviceProfile.key(v0, $0) } } ?? ""
+            DispatchQueue.main.async { self.onHat(dir, device: devID, ch: .hat) }
+            return
+        }
+
+        guard page == UInt32(kHIDPage_Button) else { return }
+        if lastButton[usage] == v { return }        // 去抖
+        lastButton[usage] = v
+        let devID = (IOHIDDeviceGetProperty(dev, kIOHIDVendorIDKey as CFString) as? Int)
+            .flatMap { v0 in (IOHIDDeviceGetProperty(dev, kIOHIDProductIDKey as CFString) as? Int)
+                .map { DeviceProfile.key(v0, $0) } } ?? ""
+        DispatchQueue.main.async { self.onButton(usage, down: v == 1, device: devID) }
+    }
+
+    private var profile: DeviceProfile? {
+        guard let d = devices.first else { return nil }
+        return ConfigStore.shared.config.devices
+            .first { $0.vendorID == d.vendorID && $0.productID == d.productID }
+    }
+
+    /// 按设备 id 取配置 —— 两只手柄同时连着时各用各的
+    private func profile(_ id: String) -> DeviceProfile? {
+        ConfigStore.shared.config.devices.first { $0.id == id }
+    }
+
+    /// 原始报告解析出的状态。和元素路径复用同一套手势/动作逻辑,
+    /// 只是入口不同 —— 这样 Pro 手柄和 Joy-Con 的行为完全一致。
+    func injectRaw(deviceID: String, buttons: Set<Int>, dirs: [StickChannel: Int?]) {
+        rawDevices.insert(deviceID)
+
+        let prev = rawButtons[deviceID] ?? []
+        rawButtons[deviceID] = buttons
+        for n in buttons.subtracting(prev) { onButton(n, down: true, device: deviceID) }
+        for n in prev.subtracting(buttons) { onButton(n, down: false, device: deviceID) }
+
+        for (ch, dir) in dirs {
+            let key = "\(deviceID)/\(ch.rawValue)"
+            if lastHat[key] ?? -1 == dir { continue }
+            lastHat[key] = dir
+            onHat(dir, device: deviceID, ch: ch)
+        }
+    }
+
+    // MARK: - 按键手势
+
+    private func onButton(_ n: Int, down: Bool, device: String) {
+        previewHandler?(.button(n, down: down))
+        // 覆盖优先, 回落基础层
+        let app = AppContext.shared.frontBundle
+        guard let prof = profile(device) else {
+            if down { lastDispatch = "按键\(n) [\(device)] 找不到配置" }
+            return
+        }
+        guard let b = prof.binding(button: n, app: app), !b.isEmpty else {
+            if down { lastDispatch = "按键\(n) [\(device)] 没绑动作" }
+            return
+        }
+        if down { lastDispatch = "按键\(n) [\(device)] -> \(b.tap ?? "?")" }
+
+        // 语音是按下/松开语义, 不参与单击双击长按
+        if b.tap == "ptt" {
+            down ? Actions.pttStart() : Actions.pttStop()
+            return
+        }
+
+        if down {
+            pressTime[n] = Date()
+            longFired.remove(n)
+
+            if let long = b.long {
+                longTimers[n] = Timer.scheduledTimer(withTimeInterval: longDelay, repeats: false) { _ in
+                    self.longFired.insert(n)
+                    Actions.run(long)
+                }
+            } else if let tap = b.tap, b.double == nil, Actions.isRepeatable(tap) {
+                // 没绑长按才连发, 否则两者会打架
+                startRepeat(n, tap)
+            }
+        } else {
+            longTimers[n]?.invalidate(); longTimers[n] = nil
+            stopRepeat(n)
+            if longFired.contains(n) { longFired.remove(n); return }
+
+            guard let tap = b.tap else { return }
+
+            guard b.double != nil else { Actions.run(tap); return }
+
+            // 绑了双击才需要等 —— 否则每次单击都白白多等 0.28 秒
+            if let pending = pendingTap[n] {
+                pending.invalidate(); pendingTap[n] = nil
+                Actions.run(b.double!)
+            } else {
+                pendingTap[n] = Timer.scheduledTimer(withTimeInterval: doubleWindow, repeats: false) { _ in
+                    self.pendingTap[n] = nil
+                    Actions.run(tap)
+                }
+            }
+        }
+    }
+
+    /// 长按连发, 和键盘重复一个手感
+    private func startRepeat(_ n: Int, _ action: String) {
+        repeatButton = n
+        repeatTimer?.invalidate()
+        repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
+            self.repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { _ in
+                Actions.run(action)
+            }
+        }
+    }
+
+    private func stopRepeat(_ n: Int) {
+        guard repeatButton == n else { return }
+        repeatTimer?.invalidate(); repeatTimer = nil; repeatButton = nil
+    }
+
+    // MARK: - 摇杆
+
+    private func onHat(_ dir: Int?, device: String, ch: StickChannel) {
+        previewHandler?(.hat(dir, ch))
+        // 学习方向时才拦截, 免得学的过程中摇杆还在翻页
+        if let cap = captureHandler { cap(.hat(dir, ch)); return }
+        repeatTimer?.invalidate(); repeatTimer = nil; repeatButton = nil
+
+        guard let dir, let p = profile(device),
+              let key = HIDInput.nearestKey(dir, p.sticks[ch.rawValue] ?? [:]),
+              let action = p.stickAction(ch, dir: key, app: AppContext.shared.frontBundle)
+        else { return }
+        Actions.run(action)
+        repeatButton = -1
+        repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
+            self.repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { _ in
+                Actions.run(action)
+            }
+        }
+    }
+
+    /// 帽子开关是 8 方向环形。取最近的已学方向, 斜推也能落到正确的一边。
+    /// 当前推的方向对应哪个 "up"/"down"/"left"/"right", 给界面高亮用
+    static func nearestKey(_ value: Int, _ dirs: [String: StickDir]) -> String? {
+        var best: (String, Int)?
+        for (key, d) in dirs {
+            let diff = abs(value - d.hat) % 8
+            let dist = min(diff, 8 - diff)
+            if best == nil || dist < best!.1 { best = (key, dist) }
+        }
+        guard let b = best, b.1 <= 1 else { return nil }
+        return b.0
+    }
+}
