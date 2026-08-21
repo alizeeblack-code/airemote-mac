@@ -13,10 +13,10 @@ struct ActionDef: Identifiable {
     let run: () -> Void
 
     init(_ id: String, _ name: String, _ detail: String = "",
-         group: String = "通用", repeatable: Bool = false,
+         group: String? = nil, repeatable: Bool = false,
          onlyIn: String? = nil, run: @escaping () -> Void) {
         self.id = id; self.name = name; self.detail = detail
-        self.group = group; self.repeatable = repeatable
+        self.group = group ?? L("通用"); self.repeatable = repeatable
         self.onlyIn = onlyIn; self.run = run
     }
 }
@@ -49,55 +49,61 @@ enum Actions {
     static let ctx = AppContext.shared
     private static func key(_ m: [String], _ k: String) { KeySynth.keyStroke(m, k) }
 
+    /// 按当前前台 app 查档案表并发出去。
+    /// 这是「语义动作 → 具体快捷键」的唯一出口 —— 以前这层散落在 21 处
+    /// if inClaude / inGhostty 里, 加个 app 就得改代码。
+    private static func send(_ action: String) {
+        let app = ctx.frontBundle
+        guard let spec = AppProfiles.key(action, app: app) else { return }
+        if spec.isText {
+            KeySynth.type(spec.text)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { key([], "return") }
+        } else if let (mods, k) = spec.parsed {
+            key(mods, k)
+        }
+    }
+
     // 同一颗键在不同 app 里做语义相同、快捷键不同的事。按键不够用时
     // 这是最划算的扩展方式 —— 肌肉记忆通用, 行为跟着场景走。
-    private static let sessionKeys: [String: (prev: ([String], String), next: ([String], String))] = [
-        // Claude Code 桌面版 (官方文档: 是 Ctrl 不是 Cmd)
-        BundleID.claude: (([ "ctrl", "shift" ], "tab"), ([ "ctrl" ], "tab")),
-        // Chrome 切标签, 和 Claude 巧合地是同一组键
-        BundleID.chrome: (([ "ctrl", "shift" ], "tab"), ([ "ctrl" ], "tab")),
-        // Ghostty 走【窗口】而不是标签页 —— 实际用法就是开多个窗口。
-        // Cmd+` 是系统级的"移到应用程序中的下一个窗口", Ghostty 自己没占用。
-        BundleID.ghostty: (([ "cmd", "shift" ], "`"), ([ "cmd" ], "`")),
-        // 微信 (菜单 Show → Show Previous/Next Chat)
-        BundleID.wechat: (([ "alt" ], "up"), ([ "alt" ], "down")),
-    ]
-
     static let all: [ActionDef] = [
 
         // ── 通用 ──────────────────────────────────────────────
-        ActionDef("confirm", "确认 / 发送", "回车；菜单打开时是「选中」") {
+        ActionDef("confirm", L("确认 / 发送"), L("回车；菜单打开时是「选中」")) {
             if ctx.inTarget() { key([], "return") }
             MenuMode.exit()
         },
-        ActionDef("cancel", "打断 / 取消", "Esc；菜单打开时是「关掉菜单」") {
+        ActionDef("cancel", L("打断 / 取消"), L("Esc；菜单打开时是「关掉菜单」")) {
             if ctx.inTarget() { key([], "escape") }
             MenuMode.exit()
         },
-        ActionDef("delete", "退格删除", repeatable: true) {
+        ActionDef("delete", L("退格删除"), repeatable: true) {
             if ctx.inTarget() { key([], "delete") }
         },
-        ActionDef("clearLine", "清空当前输入", "终端发 Ctrl+U, 其它发 Cmd+A 再退格") {
-            if ctx.inGhostty { key(["ctrl"], "u") }
-            else if ctx.inTarget() {
-                key(["cmd"], "a")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { key([], "delete") }
+        ActionDef("clearLine", L("清空当前输入"), L("终端是 Ctrl+U，输入框是全选再删")) {
+            guard ctx.inTarget() else { return }
+            if let spec = AppProfiles.key("clearLine", app: ctx.frontBundle),
+               let (m, k) = spec.parsed {
+                key(m, k)
+                // 全选之后还得删一下
+                if k == "a" && m.contains("cmd") {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { key([], "delete") }
+                }
             }
         },
-        ActionDef("scrollUp", "向上翻页", "菜单打开时变成「上一项」", repeatable: true) {
+        ActionDef("scrollUp", L("向上翻页"), L("菜单打开时变成「上一项」"), repeatable: true) {
             guard ctx.inTarget() else { return }
             if MenuMode.active { key([], "up") } else { KeySynth.scroll(lines: 8) }
         },
-        ActionDef("scrollDown", "向下翻页", "菜单打开时变成「下一项」", repeatable: true) {
+        ActionDef("scrollDown", L("向下翻页"), L("菜单打开时变成「下一项」"), repeatable: true) {
             guard ctx.inTarget() else { return }
             if MenuMode.active { key([], "down") } else { KeySynth.scroll(lines: -8) }
         },
-        ActionDef("up", "上", repeatable: true) { if ctx.inTarget() { key([], "up") } },
-        ActionDef("down", "下", repeatable: true) { if ctx.inTarget() { key([], "down") } },
-        ActionDef("left", "左", repeatable: true) { if ctx.inTarget() { key([], "left") } },
-        ActionDef("right", "右", repeatable: true) { if ctx.inTarget() { key([], "right") } },
-        ActionDef("ptt", "语音输入", "按住录, 松开出字") { /* 按下/松开另行处理 */ },
-        ActionDef("focusInput", "聚焦输入框", "点一下底部输入区") {
+        ActionDef("up", L("上"), repeatable: true) { if ctx.inTarget() { key([], "up") } },
+        ActionDef("down", L("下"), repeatable: true) { if ctx.inTarget() { key([], "down") } },
+        ActionDef("left", L("左"), repeatable: true) { if ctx.inTarget() { key([], "left") } },
+        ActionDef("right", L("右"), repeatable: true) { if ctx.inTarget() { key([], "right") } },
+        ActionDef("ptt", L("语音输入"), L("按住录, 松开出字")) { /* 按下/松开另行处理 */ },
+        ActionDef("focusInput", L("聚焦输入框"), L("点一下底部输入区")) {
             // Claude Code / 微信都没有聚焦输入框的快捷键(文档和菜单都查过),
             // Web 界面也不暴露无障碍元素。只能按窗口比例点 —— 聊天界面的
             // 输入框总在底部, 这个位置很稳。
@@ -113,94 +119,81 @@ enum Actions {
         },
 
         // ── 会话 / 标签 ────────────────────────────────────────
-        ActionDef("sessionPrev", "上一个会话", "Claude Session / 微信聊天 / Chrome 标签 / Ghostty 窗口",
-                  group: "会话", repeatable: true) {
-            if let k = sessionKeys[ctx.frontBundle] { key(k.prev.0, k.prev.1) }
+        ActionDef("sessionPrev", L("上一个会话"), L("Session / 聊天 / 标签 / 窗口，看 app"),
+                  group: L("会话"), repeatable: true) { send("sessionPrev") },
+        ActionDef("sessionNext", L("下一个会话"), L("Session / 聊天 / 标签 / 窗口，看 app"),
+                  group: L("会话"), repeatable: true) { send("sessionNext") },
+        ActionDef("wechatNextUnread", L("下一个未读会话"), L("微信 · Cmd+Opt+↓"),
+                  group: L("会话"), onlyIn: BundleID.wechat) {
+            send("wechatNextUnread")
         },
-        ActionDef("sessionNext", "下一个会话", "Claude Session / 微信聊天 / Chrome 标签 / Ghostty 窗口",
-                  group: "会话", repeatable: true) {
-            if let k = sessionKeys[ctx.frontBundle] { key(k.next.0, k.next.1) }
-        },
-        ActionDef("wechatNextUnread", "下一个未读会话", "微信 · Cmd+Opt+↓",
-                  group: "会话", onlyIn: BundleID.wechat) {
-            if ctx.inWeChat { key(["cmd", "alt"], "down") }
-        },
-        ActionDef("windowNext", "下一个窗口", "同一个 app 的窗口间切换", group: "会话") {
-            key(["cmd"], "`")
+        ActionDef("windowNext", L("下一个窗口"), L("同一个 app 的窗口间切换"), group: L("会话")) {
+            send("windowNext")
         },
 
         // ── Claude Code ───────────────────────────────────────
-        ActionDef("newSession", "新建 Session", "Cmd+N", group: "Claude Code", onlyIn: BundleID.claude) {
-            if ctx.inClaude { key(["cmd"], "n") }
+        ActionDef("newSession", L("新建 Session"), "Cmd+N", group: "Claude Code", onlyIn: BundleID.claude) {
+            send("newSession")
         },
-        ActionDef("modelMenu", "切换模型", "Claude 开菜单 / Codex 打 /model", group: "Claude Code") {
-            if ctx.inClaude {
-                key(["cmd", "shift"], "i")
-                MenuMode.enter()      // 摇杆上下随即变成选项上下
-            } else if ctx.inGhostty {
-                KeySynth.type("/model")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { key([], "return") }
-                MenuMode.enter()
-            }
+        ActionDef("modelMenu", L("切换模型"), L("Claude 开菜单 / Codex 打 /model"), group: "Claude Code") {
+            send("modelMenu")
         },
-        ActionDef("effortMenu", "切换 effort", "Cmd+Shift+E", group: "Claude Code", onlyIn: BundleID.claude) {
-            if ctx.inClaude { key(["cmd", "shift"], "e"); MenuMode.enter() }
+        ActionDef("effortMenu", L("切换 effort"), "Cmd+Shift+E", group: "Claude Code", onlyIn: BundleID.claude) {
+            send("effortMenu")
         },
-        ActionDef("mode", "切权限模式", "Codex:Shift+Tab / Claude:Cmd+Shift+M", group: "Claude Code") {
-            // 桌面版不吃 Shift+Tab —— 那是终端专有的, 官方文档明确写了
-            if ctx.inGhostty { key(["shift"], "tab") }
-            else if ctx.inClaude { key(["cmd", "shift"], "m"); MenuMode.enter() }
+        ActionDef("mode", L("切权限模式"), "Codex:Shift+Tab / Claude:Cmd+Shift+M", group: "Claude Code") {
+            send("mode")
         },
-        ActionDef("diffPane", "切换 diff 面板", "看改了什么", group: "Claude Code", onlyIn: BundleID.claude) {
-            if ctx.inClaude { key(["cmd", "shift"], "d") }
+        ActionDef("diffPane", L("切换 diff 面板"), L("看改了什么"), group: "Claude Code", onlyIn: BundleID.claude) {
+            send("diffPane")
         },
-        ActionDef("terminalPane", "切换终端面板", "内置 shell", group: "Claude Code", onlyIn: BundleID.claude) {
-            if ctx.inClaude { key(["ctrl"], "`") }
+        ActionDef("terminalPane", L("切换终端面板"), L("内置 shell"), group: "Claude Code", onlyIn: BundleID.claude) {
+            send("terminalPane")
         },
-        ActionDef("browserPane", "切换 Browser 面板", group: "Claude Code", onlyIn: BundleID.claude) {
-            if ctx.inClaude { key(["cmd", "shift"], "b") }
+        ActionDef("browserPane", L("切换 Browser 面板"), group: "Claude Code", onlyIn: BundleID.claude) {
+            send("browserPane")
         },
-        ActionDef("sideChat", "打开 side chat", group: "Claude Code", onlyIn: BundleID.claude) {
-            if ctx.inClaude { key(["cmd"], ";") }
+        ActionDef("sideChat", L("打开 side chat"), group: "Claude Code", onlyIn: BundleID.claude) {
+            send("sideChat")
         },
-        ActionDef("closePane", "关闭当前分栏", group: "Claude Code", onlyIn: BundleID.claude) {
-            if ctx.inClaude { key(["cmd"], "\\") }
+        ActionDef("closePane", L("关闭当前分栏"), group: "Claude Code", onlyIn: BundleID.claude) {
+            send("closePane")
         },
-        ActionDef("viewMode", "循环视图模式", "控制正文详细程度", group: "Claude Code", onlyIn: BundleID.claude) {
-            if ctx.inClaude { key(["ctrl"], "o") }
+        ActionDef("viewMode", L("循环视图模式"), L("控制正文详细程度"), group: "Claude Code", onlyIn: BundleID.claude) {
+            send("viewMode")
         },
 
         // ── 终端 ──────────────────────────────────────────────
-        ActionDef("interrupt", "Ctrl+C", "⚠️ Codex 里这是退出 CLI, 打断请用 Esc", group: "终端", onlyIn: BundleID.ghostty) {
-            if ctx.inGhostty { key(["ctrl"], "c") }
+        ActionDef("interrupt", "Ctrl+C", L("⚠️ Codex 里这是退出 CLI, 打断请用 Esc"), group: L("终端"), onlyIn: BundleID.ghostty) {
+            send("interrupt")
         },
 
         // ── Chrome ────────────────────────────────────────────
-        ActionDef("navBack", "后退", "Cmd+[", group: "Chrome", repeatable: true, onlyIn: BundleID.chrome) {
-            if ctx.inChrome { key(["cmd"], "[") }
+        ActionDef("navBack", L("后退"), "Cmd+[", group: "Chrome", repeatable: true, onlyIn: BundleID.chrome) {
+            send("navBack")
         },
-        ActionDef("navForward", "前进", "Cmd+]", group: "Chrome", repeatable: true, onlyIn: BundleID.chrome) {
-            if ctx.inChrome { key(["cmd"], "]") }
+        ActionDef("navForward", L("前进"), "Cmd+]", group: "Chrome", repeatable: true, onlyIn: BundleID.chrome) {
+            send("navForward")
         },
-        ActionDef("reload", "刷新页面", "Cmd+R", group: "Chrome", onlyIn: BundleID.chrome) {
-            if ctx.inChrome { key(["cmd"], "r") }
+        ActionDef("reload", L("刷新页面"), "Cmd+R", group: "Chrome", onlyIn: BundleID.chrome) {
+            send("reload")
         },
-        ActionDef("newTab", "新建标签", "Cmd+T", group: "Chrome", onlyIn: BundleID.chrome) {
-            if ctx.inChrome { key(["cmd"], "t") }
+        ActionDef("newTab", L("新建标签"), "Cmd+T", group: "Chrome", onlyIn: BundleID.chrome) {
+            send("newTab")
         },
-        ActionDef("closeTab", "关闭当前标签", "Cmd+W；最后一个标签会连窗口一起关",
+        ActionDef("closeTab", L("关闭当前标签"), L("Cmd+W；最后一个标签会连窗口一起关"),
                   group: "Chrome", onlyIn: BundleID.chrome) {
-            if ctx.inChrome { key(["cmd"], "w") }
+            send("closeTab")
         },
 
         // ── 切换 app (不受白名单限制, 任何地方都能用) ──────────
-        ActionDef("switchApp", "切换到上一个 app", "连按继续往前翻", group: "切换 app") {
+        ActionDef("switchApp", L("切换到上一个 app"), L("连按继续往前翻"), group: L("切换 app")) {
             ctx.switchToPrevious()
         },
-        ActionDef("focusClaude", "切到 Claude Code", group: "切换 app") { ctx.focus(BundleID.claude) },
-        ActionDef("focusGhostty", "切到 Ghostty", group: "切换 app") { ctx.focus(BundleID.ghostty) },
-        ActionDef("focusWeChat", "切到微信", group: "切换 app") { ctx.focus(BundleID.wechat) },
-        ActionDef("focusChrome", "切到 Chrome", group: "切换 app") { ctx.focus(BundleID.chrome) },
+        ActionDef("focusClaude", L("切到 Claude Code"), group: L("切换 app")) { ctx.focus(BundleID.claude) },
+        ActionDef("focusGhostty", L("切到 Ghostty"), group: L("切换 app")) { ctx.focus(BundleID.ghostty) },
+        ActionDef("focusWeChat", L("切到微信"), group: L("切换 app")) { ctx.focus(BundleID.wechat) },
+        ActionDef("focusChrome", L("切到 Chrome"), group: L("切换 app")) { ctx.focus(BundleID.chrome) },
     ]
 
     static let byID: [String: ActionDef] = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
