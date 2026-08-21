@@ -72,6 +72,21 @@ for f in glob.glob('Sources/JoyCoding/**/*.swift', recursive=True):
         if st.startswith('//') or 'NSLog' in line: continue
         for lit in re.findall(r'L\("((?:[^"\\]|\\.)*)"\)', line):
             if lit not in known: miss.append((f.split('/')[-1], lit))
+# 短 key(不是中文原文的那些)如果 zh 表里没有, L() 会原样返回 key,
+# 中文界面上就会出现 "noLanAddr" 这种字面量。上面的 known 是两张表
+# 合起来算的, 所以拦不住 —— 这里单独查 zh 表。
+_src = open('Sources/JoyCoding/Translations.swift', encoding='utf-8').read()
+_zh = _src[_src.index('static let zh'):_src.index('static let en')]
+_short = set()
+for f in glob.glob('Sources/JoyCoding/**/*.swift', recursive=True):
+    if f.endswith('Translations.swift'): continue
+    _short |= set(re.findall(r'L\("([A-Za-z][A-Za-z0-9]*)"\)', open(f, encoding='utf-8').read()))
+_nozh = [k for k in sorted(_short) if '"%s":' % k not in _zh]
+if _nozh:
+    print("  ❌ %d 个短 key 缺中文, 中文界面会显示 key 本身:" % len(_nozh))
+    for k in _nozh: print("     " + k)
+    sys.exit(1)
+
 if miss:
     print(f"  ⚠️ {len(miss)} 条 L() 包了但没翻译:")
     for f, l in miss[:10]: print(f"     {f}: {l}")

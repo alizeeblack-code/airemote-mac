@@ -165,6 +165,7 @@ struct Config: Codable {
         }
         httpEnabled       = v(.httpEnabled, true)
         httpPort          = v(.httpPort, 27123)
+        remoteAddress     = v(.remoteAddress, "")
         httpToken         = v(.httpToken, "")
         httpInterface     = v(.httpInterface, "all")
         restrictToTargets = v(.restrictToTargets, true)
@@ -185,6 +186,8 @@ struct Config: Codable {
 
     var httpEnabled = true
     var httpPort = 27123
+    /// 手机遥控用哪个本机地址; 空表示自动挑。
+    var remoteAddress = ""
     var httpToken = ""
     /// 监听网卡: "all" / "localhost" / 具体 IP
     var httpInterface = "all"

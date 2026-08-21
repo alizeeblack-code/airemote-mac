@@ -14,6 +14,7 @@ enum Translations {
         "pttFuseHint": "手柄在你按住时掉线的话，「松开」事件永远不会来，修饰键会一直卡住，整台机器基本没法用。这是兜底。",
         "remoteWarn": "⚠️ 这个接口等于把键盘权限开到网络上。只在内网或 Tailscale 里用，绝对不要做端口转发暴露到公网。",
         "axGranted": "手柄按键要靠它翻译成键盘事件，这一项是整个 app 的前提。",
+        "noLanAddr": "没找到手机能连上的地址 —— 确认这台 Mac 连着 Wi-Fi 或有线网。",
         "pairBtn": "配对",
         "langHint": "跟随系统时，只有简体中文环境显示中文，其余一律英文。",
         "axHowto": "在「系统设置 → 隐私与安全性 → 辅助功能」里勾选 JoyCoding，"
@@ -250,6 +251,7 @@ enum Translations {
         "按键 %@ [%@] -> %@": "Button %@ [%@] -> %@",
         "SetReport 失败 0x%%08X": "SetReport failed 0x%%08X",
         "pairBtn": "Pair",
+        "noLanAddr": "No reachable address found — check that this Mac is on Wi-Fi or Ethernet.",
         "偏好": "Preferences",
         "菜单栏显示手柄电量": "Show battery in menu bar",
         "langHint": "In System mode, Chinese is used only for Simplified Chinese; "

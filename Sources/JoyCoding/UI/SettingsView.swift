@@ -238,11 +238,20 @@ struct RemoteView: View {
     @ObservedObject var store = ConfigStore.shared
     @ObservedObject var http = HTTPServer.shared
 
-    private var lanURL: String {
-        "http://\(localIP()):\(store.config.httpPort)/\(store.config.httpToken)/"
+    /// 每次渲染重新枚举 —— 用户可能刚插网线或切了 Wi-Fi
+    private var addresses: [NetAddress] { NetAddresses.all() }
+
+    private var current: NetAddress? {
+        NetAddresses.resolve(preferred: store.config.remoteAddress)
     }
 
-    private var baseURL: String { "http://\(localIP()):\(store.config.httpPort)/" }
+    private var lanURL: String {
+        "http://\(current?.ip ?? "127.0.0.1"):\(store.config.httpPort)/\(store.config.httpToken)/"
+    }
+
+    private var baseURL: String {
+        "http://\(current?.ip ?? "127.0.0.1"):\(store.config.httpPort)/"
+    }
 
     private var cornerApps: [String] {
         let c = store.config.remoteCorners
@@ -272,8 +281,14 @@ struct RemoteView: View {
             }
 
             Section(L("配对")) {
+                if current == nil {
+                    // 静默回落成 127.0.0.1 的话, 二维码照样生成但手机连不上,
+                    // 而且看不出是为什么 —— 所以这里必须说清楚
+                    Label(L("noLanAddr"), systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
                 HStack(alignment: .top, spacing: 20) {
-                    if let qr = QRCode.image(baseURL, size: 150) {
+                    if current != nil, let qr = QRCode.image(baseURL, size: 150) {
                         Image(nsImage: qr)
                             .interpolation(.none)          // 二维码不能插值, 会糊
                             .resizable().frame(width: 150, height: 150)
@@ -283,6 +298,13 @@ struct RemoteView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(L("用手机相机扫码，或在浏览器打开："))
                             .font(.subheadline).foregroundStyle(.secondary)
+                        // 一个地址时没什么可选的, 不拿下拉去占地方
+                        if addresses.count > 1 {
+                            Picker(L("地址"), selection: $store.config.remoteAddress) {
+                                ForEach(addresses) { a in Text(a.label).tag(a.ip) }
+                            }
+                            .labelsHidden().frame(maxWidth: 260)
+                        }
                         Text(baseURL)
                             .font(.system(.body, design: .monospaced)).textSelection(.enabled)
                         Divider()
@@ -347,19 +369,4 @@ struct RemoteView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func localIP() -> String {
-        var addr = "127.0.0.1"
-        var ifap: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifap) == 0, let first = ifap else { return addr }
-        defer { freeifaddrs(ifap) }
-        for p in sequence(first: first, next: { $0.pointee.ifa_next }) {
-            guard p.pointee.ifa_addr.pointee.sa_family == UInt8(AF_INET),
-                  let n = p.pointee.ifa_name, String(cString: n) == "en0" else { continue }
-            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-            getnameinfo(p.pointee.ifa_addr, socklen_t(p.pointee.ifa_addr.pointee.sa_len),
-                        &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST)
-            addr = String(cString: host)
-        }
-        return addr
-    }
 }
