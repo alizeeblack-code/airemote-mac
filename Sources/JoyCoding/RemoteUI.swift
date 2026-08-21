@@ -11,6 +11,23 @@ import Foundation
 /// 里只显示当下真正有用的动作。
 enum RemoteUI {
 
+    /// JS 里也要 L()。Swift 侧把用到的文案连同译文一起注入,
+    /// 手机页于是跟 Mac app 走同一张翻译表, 不用在前端再维护一份。
+    private static let jsKeys = ["松开出字", "按住说话", "更多", "连接断开",
+                                 "请输入 6 位数字", "配对失败", "连不上 Mac"]
+
+    private static var jsStrings: String {
+        let dict = jsKeys.map { "\(jsQ($0)):\(jsQ(L($0)))" }.joined(separator: ",")
+        return "const _S={\(dict)};const L=k=>_S[k]||k;"
+    }
+
+    /// 借 JSON 转义, 把中文安全塞进 JS 字面量
+    private static func jsQ(_ v: String) -> String {
+        guard let d = try? JSONSerialization.data(withJSONObject: [v]),
+              let a = String(data: d, encoding: .utf8) else { return "\"\"" }
+        return String(a.dropFirst().dropLast())
+    }
+
     private static let css = #"""
 
 :root{
@@ -139,9 +156,9 @@ document.querySelectorAll("[data-a]").forEach(bind);
 let rec=false;
 const voice=$("#voice"), vtext=$("#vtext");
 const start=e=>{e.preventDefault();if(rec)return;rec=true;
-  voice.classList.add("rec");vtext.textContent="松开出字";fire("pttStart");};
+  voice.classList.add("rec");vtext.textContent=L("松开出字");fire("pttStart");};
 const stop=()=>{if(!rec)return;rec=false;
-  voice.classList.remove("rec");vtext.textContent="按住说话";fire("pttStop");};
+  voice.classList.remove("rec");vtext.textContent=L("按住说话");fire("pttStop");};
 voice.addEventListener("touchstart",start,{passive:false});
 voice.addEventListener("touchend",stop);
 voice.addEventListener("touchcancel",stop);
@@ -194,7 +211,7 @@ async function poll(){
       direct.forEach((a,i)=>cbox.appendChild(corner(i,a)));
       if(apps.length>4){   // 白名单超过四个又没手动指定时, 右下角给个入口
         const b=document.createElement("button");
-        b.className="corner c3"; b.textContent="更多";
+        b.className="corner c3"; b.textContent=L("更多");
         b.addEventListener("click",()=>sheet.classList.remove("hidden"));
         cbox.appendChild(b);
       }
@@ -218,7 +235,7 @@ async function poll(){
       });
       $("#extrah").style.display=(s.extras||[]).length?"":"none";
     }
-  }catch(e){ $("#appname").textContent="连接断开"; $("#dot").classList.remove("on"); }
+  }catch(e){ $("#appname").textContent=L("连接断开"); $("#dot").classList.remove("on"); }
 }
 poll(); setInterval(poll,1500);
 
@@ -228,11 +245,11 @@ poll(); setInterval(poll,1500);
     static func pairPage() -> String {
         """
         <!DOCTYPE html>
-        <html lang="zh"><head>
+        <html lang="\(Lang.isChinese ? "zh" : "en")"><head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
         <meta name="apple-mobile-web-app-capable" content="yes">
-        <title>JoyCoding 配对</title>
+        <title>JoyCoding \(L("配对"))</title>
         <style>\(css)
         #pairwrap{height:100%;display:flex;flex-direction:column;align-items:center;
                   justify-content:center;gap:20px;padding:30px}
@@ -247,22 +264,22 @@ poll(); setInterval(poll,1500);
         </style></head><body>
         <div id="pairwrap">
           <h1>🎮 JoyCoding</h1>
-          <p>在 Mac 上打开 JoyCoding 设置 → 手机遥控<br>输入那里显示的 6 位配对码</p>
+          <p>\(L("在 Mac 上打开 JoyCoding 设置 → 手机遥控"))<br>\(L("输入那里显示的 6 位配对码"))</p>
           <input id="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="······">
-          <button id="go">配对</button>
+          <button id="go">\(L("pairBtn"))</button>
           <div id="msg"></div>
         </div>
-        <script>
+        <script>\(jsStrings)
         const code=document.getElementById("code"), msg=document.getElementById("msg");
         code.focus();
         async function pair(){
           const v=code.value.trim();
-          if(v.length!==6){msg.textContent="请输入 6 位数字";return;}
+          if(v.length!==6){msg.textContent=L("请输入 6 位数字");return;}
           try{
             const r=await fetch(`/pair/${v}`);
             const j=await r.json();
-            if(j.ok){ location.href="/"; } else { msg.textContent=j.msg||"配对失败"; code.value=""; }
-          }catch(e){ msg.textContent="连不上 Mac"; }
+            if(j.ok){ location.href="/"; } else { msg.textContent=j.msg||L("配对失败"); code.value=""; }
+          }catch(e){ msg.textContent=L("连不上 Mac"); }
         }
         document.getElementById("go").addEventListener("click",pair);
         code.addEventListener("input",()=>{msg.textContent="";if(code.value.length===6)pair();});
@@ -273,7 +290,7 @@ poll(); setInterval(poll,1500);
     static func page() -> String {
         """
         <!DOCTYPE html>
-        <html lang="zh"><head>
+        <html lang="\(Lang.isChinese ? "zh" : "en")"><head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
         <meta name="apple-mobile-web-app-capable" content="yes">
@@ -284,8 +301,8 @@ poll(); setInterval(poll,1500);
         <div id="app">
           <header id="bar">
             <span id="dot"></span>
-            <span id="appname">连接中…</span>
-            <button id="more" aria-label="更多">⋯</button>
+            <span id="appname">\(L("连接中…"))</span>
+            <button id="more" aria-label="\(L("更多"))">⋯</button>
           </header>
 
           <section id="padwrap">
@@ -296,7 +313,7 @@ poll(); setInterval(poll,1500);
               <button class="dir down"  data-a="stickDown"></button>
               <button class="dir left"  data-a="stickLeft"></button>
               <button class="dir right" data-a="stickRight"></button>
-              <button id="ok" data-a="confirm">发送</button>
+              <button id="ok" data-a="confirm">\(L("发送"))</button>
               </div>
             </div>
           </section>
@@ -304,7 +321,7 @@ poll(); setInterval(poll,1500);
           <section id="row"></section>
 
           <section id="voicewrap">
-            <button id="voice"><span class="mic">🎤</span><span id="vtext">按住说话</span></button>
+            <button id="voice"><span class="mic">🎤</span><span id="vtext">\(L("按住说话"))</span></button>
           </section>
         </div>
 
@@ -312,13 +329,13 @@ poll(); setInterval(poll,1500);
           <div id="sheetbg"></div>
           <div id="sheetbody">
             <div class="handle"></div>
-            <h3 id="pickh">切换到</h3>
+            <h3 id="pickh">\(L("切换到"))</h3>
             <div class="chips" id="pick"></div>
-            <h3 id="extrah">当前 app 可用</h3>
+            <h3 id="extrah">\(L("当前 app 可用"))</h3>
             <div class="chips" id="extras"></div>
           </div>
         </div>
-        <script>\(js)</script>
+        <script>\(jsStrings)\(js)</script>
         </body></html>
         """
     }
