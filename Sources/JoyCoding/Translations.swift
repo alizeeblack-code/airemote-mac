@@ -15,6 +15,8 @@ enum Translations {
         "remoteWarn": "⚠️ 这个接口等于把键盘权限开到网络上。只在内网或 Tailscale 里用，绝对不要做端口转发暴露到公网。",
         "axGranted": "手柄按键要靠它翻译成键盘事件，这一项是整个 app 的前提。",
         "noLanAddr": "没找到手机能连上的地址 —— 确认这台 Mac 连着 Wi-Fi 或有线网。",
+        "pttTestHint": "点「测试」—— JoyCoding 会按住这个键 2 秒。听写工具起来了就说明键是对的。",
+        "pttInstalledHint": "检测到这台 Mac 上装了 %@。请确认上面的键和它里面设的一致 —— JoyCoding 读不到别的 app 的快捷键设置。",
         "pairBtn": "配对",
         "langHint": "跟随系统时，只有简体中文环境显示中文，其余一律英文。",
         "axHowto": "在「系统设置 → 隐私与安全性 → 辅助功能」里勾选 JoyCoding，"
@@ -252,6 +254,10 @@ enum Translations {
         "SetReport 失败 0x%%08X": "SetReport failed 0x%%08X",
         "pairBtn": "Pair",
         "noLanAddr": "No reachable address found — check that this Mac is on Wi-Fi or Ethernet.",
+        "测试": "Test",
+        "测试中… %@": "Testing… %@",
+        "pttTestHint": "Press Test — JoyCoding holds this key for 2 seconds. If your dictation tool starts listening, the key is right.",
+        "pttInstalledHint": "Found %@ on this Mac. Make sure the key above matches the one set inside it — JoyCoding cannot read another app's shortcut.",
         "偏好": "Preferences",
         "菜单栏显示手柄电量": "Show battery in menu bar",
         "langHint": "In System mode, Chinese is used only for Simplified Chinese; "

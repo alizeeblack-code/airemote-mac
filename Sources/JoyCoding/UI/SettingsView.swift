@@ -188,6 +188,30 @@ struct GeneralView: View {
 
 struct VoiceView: View {
     @ObservedObject var store = ConfigStore.shared
+    @State private var testing = false
+    @State private var testLeft = 0
+
+    /// 走 Actions 的真实 PTT 路径, 不另写一份 —— 否则测的就不是实际会发生的事
+    private func runTest() {
+        guard !testing else { return }
+        testing = true
+        testLeft = 2
+        Actions.pttStart()
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { t in
+            testLeft -= 1
+            if testLeft <= 0 {
+                t.invalidate()
+                // "按一下开始, 再按一下停止"模式里 pttStop 是故意不做事的
+                // (靠下一次按下来停)。测试必须自己收尾, 不能把听写一直开着。
+                if ConfigStore.shared.config.pttStyle == "tap" {
+                    Actions.pttStart()
+                } else {
+                    Actions.pttStop()
+                }
+                testing = false
+            }
+        }
+    }
 
     var body: some View {
         Form {
@@ -204,16 +228,31 @@ struct VoiceView: View {
             }
 
             Section(L("发给听写工具的热键")) {
-                Picker(L("按键"), selection: $store.config.pttKey) {
+                HStack {
+                    Picker(L("按键"), selection: $store.config.pttKey) {
                     Text(L("左 Control")).tag("ctrl")
                     Text(L("右 Control")).tag("rightctrl")
                     Text(L("左 Option")).tag("alt")
                     Text(L("右 Option")).tag("rightalt")
                     Text("Fn").tag("fn")
-                    Text(L("D（配合下面的修饰键）")).tag("d")
+                        Text(L("D（配合下面的修饰键）")).tag("d")
+                    }
+                    Spacer()
+                    // 键对不对是看不出来的, 只能试。按一下就知道听写有没有起来。
+                    Button(testing ? L("测试中… %@", String(testLeft)) : L("测试")) { runTest() }
+                        .disabled(testing)
                 }
                 Text(L("pttKeyHint"))
                     .font(.subheadline).foregroundStyle(.secondary)
+                Text(L("pttTestHint"))
+                    .font(.caption).foregroundStyle(.secondary)
+
+                let apps = DictationApps.installed()
+                if !apps.isEmpty {
+                    Label(L("pttInstalledHint", apps.joined(separator: "、")),
+                          systemImage: "info.circle")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
 
             Section(L("保险丝")) {
