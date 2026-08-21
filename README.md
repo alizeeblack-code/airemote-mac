@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="icon/AppIcon.icns" width="120" alt="JoyCoding">
+<img src="icon/AppIcon.png" width="120" alt="JoyCoding">
 
 # JoyCoding
 
