@@ -258,6 +258,9 @@ enum Translations {
         "测试中… %@": "Testing… %@",
         "pttTestHint": "Press Test — JoyCoding holds this key for 2 seconds. If your dictation tool starts listening, the key is right.",
         "pttInstalledHint": "Found %@ on this Mac. Make sure the key above matches the one set inside it — JoyCoding cannot read another app's shortcut.",
+        "切到 %@": "Go to %@",
+        "电量 %@%%": "Battery %@%%",
+        "已配 %@ 键": "%@ buttons mapped",
         "偏好": "Preferences",
         "菜单栏显示手柄电量": "Show battery in menu bar",
         "langHint": "In System mode, Chinese is used only for Simplified Chinese; "

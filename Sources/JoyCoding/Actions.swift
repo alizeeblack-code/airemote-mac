@@ -65,7 +65,7 @@ enum Actions {
 
     // 同一颗键在不同 app 里做语义相同、快捷键不同的事。按键不够用时
     // 这是最划算的扩展方式 —— 肌肉记忆通用, 行为跟着场景走。
-    static let all: [ActionDef] = [
+    private static let base: [ActionDef] = [
 
         // ── 通用 ──────────────────────────────────────────────
         ActionDef("confirm", L("确认 / 发送"), L("回车；菜单打开时是「选中」")) {
@@ -190,13 +190,56 @@ enum Actions {
         ActionDef("switchApp", L("切换到上一个 app"), L("连按继续往前翻"), group: L("切换 app")) {
             ctx.switchToPrevious()
         },
-        ActionDef("focusClaude", L("切到 Claude Code"), group: L("切换 app")) { ctx.focus(BundleID.claude) },
-        ActionDef("focusGhostty", L("切到 Ghostty"), group: L("切换 app")) { ctx.focus(BundleID.ghostty) },
-        ActionDef("focusWeChat", L("切到微信"), group: L("切换 app")) { ctx.focus(BundleID.wechat) },
-        ActionDef("focusChrome", L("切到 Chrome"), group: L("切换 app")) { ctx.focus(BundleID.chrome) },
     ]
 
-    static let byID: [String: ActionDef] = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+    // MARK: - 「切到某个 app」按白名单动态生成
+    //
+    // 原来是四条写死的 focusClaude/focusGhostty/focusWeChat/focusChrome。
+    // 用户往白名单里加了别的 app(比如 Codex), 手柄这边根本没有对应动作可绑,
+    // 手机那边也会被 cfgApps 静默丢掉 —— 加一个 app 就要改一次代码。
+
+    /// 这四个 app 沿用老 ID: 用户配置里已经绑着它们了, 换 ID 会让绑定静默失效。
+    static let legacyFocusID: [String: String] = [
+        BundleID.claude: "focusClaude", BundleID.ghostty: "focusGhostty",
+        BundleID.wechat: "focusWeChat", BundleID.chrome: "focusChrome",
+    ]
+
+    /// 某个 app 对应的动作 ID。已知的给老 ID, 其余用 focus:<bundleID>。
+    static func focusID(for bundle: String) -> String {
+        legacyFocusID[bundle] ?? "focus:\(bundle)"
+    }
+
+    /// 出现在动作表里的 app: 白名单 ∪ 那四个老的。
+    /// 并上老的是为了不改变现状 —— 有人可能把 Chrome 移出了白名单但按键还绑着。
+    private static func focusApps() -> [String] {
+        var seen = Set<String>()
+        return (ConfigStore.shared.config.targetApps + Array(legacyFocusID.keys))
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+
+    private static func focusActions() -> [ActionDef] {
+        focusApps().map { b in
+            ActionDef(focusID(for: b), L("切到 %@", AppName.of(b)), group: L("切换 app")) {
+                ctx.focus(b)
+            }
+        }
+    }
+
+    // 每次读都重建的话, 按键路径和视图刷新都会付代价。按白名单签名缓存。
+    private static var cacheKey = ""
+    private static var cacheAll: [ActionDef] = []
+    private static var cacheByID: [String: ActionDef] = [:]
+
+    private static func rebuildIfNeeded() {
+        let key = focusApps().joined(separator: "|")
+        guard key != cacheKey || cacheAll.isEmpty else { return }
+        cacheKey = key
+        cacheAll = base + focusActions()
+        cacheByID = Dictionary(cacheAll.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+    }
+
+    static var all: [ActionDef] { rebuildIfNeeded(); return cacheAll }
+    static var byID: [String: ActionDef] { rebuildIfNeeded(); return cacheByID }
 
     static var groups: [String] {
         var seen: [String] = []

@@ -242,19 +242,22 @@ final class HTTPServer: ObservableObject {
     }
 
     /// 手机切换条用的 app 列表: (bundleID, 短名, 对应的切换动作)
+    /// 手机端要的完整 app 列表。**不要在这里截断** —— 手机侧拿它同时做两件事:
+    /// 前四个放圆盘四角, 全部放进「⋯ → 切换到」。之前这里 prefix(4) 一刀切,
+    /// 结果切换列表也只剩四个, 而且 JS 里 `apps.length>4` 才显示的「更多」入口
+    /// 成了永远走不到的死代码。
+    ///
+    /// 动作 ID 也不再查写死的四条映射 —— 那会把用户新加的 app 静默丢掉。
     private func cfgApps() -> [(String, String, String)] {
         let short = [BundleID.claude: "Claude", BundleID.ghostty: "Ghostty",
                      BundleID.wechat: L("微信"),   BundleID.chrome: "Chrome"]
-        let act = [BundleID.claude: "focusClaude", BundleID.ghostty: "focusGhostty",
-                   BundleID.wechat: "focusWeChat", BundleID.chrome: "focusChrome"]
         let cfg = ConfigStore.shared.config
-        // 用户在设置里指定了四角就按他的来, 没指定则自动取白名单前四个
-        let list = cfg.remoteCorners.isEmpty
-            ? Array(cfg.targetApps.prefix(4))
-            : cfg.remoteCorners
+        // 四角指定过就按用户的来, 没指定就用白名单本身的顺序
+        let list = cfg.remoteCorners.isEmpty ? cfg.targetApps : cfg.remoteCorners
+        var seen = Set<String>()
         return list.compactMap { b in
-            guard !b.isEmpty, let a = act[b] else { return nil }
-            return (b, short[b] ?? AppName.of(b), a)
+            guard !b.isEmpty, seen.insert(b).inserted else { return nil }
+            return (b, short[b] ?? AppName.of(b), Actions.focusID(for: b))
         }
     }
 
