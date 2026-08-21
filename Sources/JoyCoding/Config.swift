@@ -20,18 +20,28 @@ struct ButtonBinding: Codable, Equatable {
 /// 只存 动作→hat 的话, 界面就只能显示"方向 6"这种对人没意义的数字。
 /// 方向通道。一只手柄可能有好几个方向来源, 各绑各的。
 enum StickChannel: String, CaseIterable {
-    /// hat = 主方向通道。Joy-Con 上是摇杆; Pro 手柄上十字键和左摇杆【合流】
-    /// 到这里 —— 推哪个都一样, 省一套配置。右摇杆才单独成一个通道。
-    case hat, right
+    /// hat = 主方向通道。Joy-Con 上就是那颗摇杆; Pro/PS 上是十字键。
+    /// left/right = 左右摇杆。
+    ///
+    /// 十字键和左摇杆原来合流在 hat 里(推哪个都一样)。但这两个物理输入
+    /// 本来就该能绑不同的东西 —— 十字键当方向键、左摇杆翻页, 是很自然的用法。
+    case hat, left, right
 
     var label: String {
         switch self {
         case .hat:   return L("主方向")
+        case .left:  return L("左摇杆")
         case .right: return L("右摇杆")
         }
     }
     /// 虚拟锚点 id, 用负数和真实按键编号错开
-    var anchorID: Int { self == .hat ? -1 : -3 }
+    var anchorID: Int {
+        switch self {
+        case .hat: return -1
+        case .left: return -2
+        case .right: return -3
+        }
+    }
     static func from(anchorID: Int) -> StickChannel? {
         allCases.first { $0.anchorID == anchorID }
     }
@@ -144,6 +154,13 @@ struct DeviceProfile: Codable, Identifiable, Equatable {
         if sticks.isEmpty && !stickDirs.isEmpty { sticks[StickChannel.hat.rawValue] = stickDirs }
         overrides = try c.decodeIfPresent([String: AppOverride].self, forKey: .overrides) ?? [:]
         stickModes = try c.decodeIfPresent([String: String].self, forKey: .stickModes) ?? [:]
+
+        // 十字键和左摇杆原来合流在 hat。拆开后把原绑定复制给左摇杆,
+        // 这样升级前后行为完全一致 —— 用户想让它们不同再自己改。
+        if sticks[StickChannel.left.rawValue] == nil,
+           let h = sticks[StickChannel.hat.rawValue] {
+            sticks[StickChannel.left.rawValue] = h
+        }
 
         // 右摇杆原来默认绑方向键。没被用户改过就迁成鼠标 —— 改过的不动,
         // 免得把人家自己的设置覆盖掉。

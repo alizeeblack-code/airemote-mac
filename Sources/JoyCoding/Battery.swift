@@ -112,8 +112,8 @@ final class JoyConBattery: ObservableObject {
             let btns = NintendoRaw.buttons(b)
             // 三个方向来源各走各的通道, 可以分别绑不同动作
             let dirs: [StickChannel: Int?] = [
-                // 十字键和左摇杆合流: 推哪个都一样
-                .hat:   NintendoRaw.hat(b) ?? NintendoRaw.leftStick(b),
+                .hat:   NintendoRaw.hat(b),          // 十字键
+                .left:  NintendoRaw.leftStick(b),     // 左摇杆, 各绑各的
                 .right: NintendoRaw.rightStick(b),
             ]
             let rvec = NintendoRaw.rightStickVec(b)

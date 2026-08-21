@@ -135,7 +135,10 @@ struct DeviceArt {
 
             .init(id: 11, label: L("左摇杆按下"), pos: .init(x: 0.245, y: 0.300),
                   size: .init(width: 0.155, height: 0.225), shape: .circle, side: .left),
-            .init(id: StickAnchor.id, label: L("十字键 / 左摇杆"), pos: .init(x: 0.335, y: 0.560),
+            .init(id: StickChannel.left.anchorID, label: L("左摇杆方向"),
+                  pos: .init(x: 0.245, y: 0.300),
+                  size: .init(width: 0.155, height: 0.225), shape: .circle, side: .left),
+            .init(id: StickAnchor.id, label: L("十字键"), pos: .init(x: 0.335, y: 0.560),
                   size: .init(width: 0.13, height: 0.19), shape: .circle, side: .left),
 
             .init(id: 2,  label: "X", pos: .init(x: 0.775, y: 0.235),
@@ -184,6 +187,9 @@ struct DeviceArt {
                   size: .init(width: 0.18, height: 0.042), shape: .capsuleH, side: .right),
 
             // 十字键在左上 (Pro 手柄这里是左摇杆)
+            .init(id: StickChannel.left.anchorID, label: L("左摇杆方向"),
+                  pos: .init(x: 0.395, y: 0.560),
+                  size: .init(width: 0.145, height: 0.210), shape: .circle, side: .left),
             .init(id: StickChannel.hat.anchorID, label: L("十字键"), pos: .init(x: 0.230, y: 0.290),
                   size: .init(width: 0.13, height: 0.19), shape: .circle, side: .left),
 

@@ -270,6 +270,8 @@ enum Translations {
         "mouseModeHint": "Push to move the pointer — further means faster. The resting centre is learned automatically.",
         "鼠标左键": "Mouse left button",
         "按住可拖动": "Hold to drag",
+        "左摇杆": "Left stick",
+        "左摇杆方向": "Left stick directions",
         "偏好": "Preferences",
         "菜单栏显示手柄电量": "Show battery in menu bar",
         "langHint": "In System mode, Chinese is used only for Simplified Chinese; "
