@@ -25,8 +25,8 @@ enum StickChannel: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .hat:   return "主方向"
-        case .right: return "右摇杆"
+        case .hat:   return L("主方向")
+        case .right: return L("右摇杆")
         }
     }
     /// 虚拟锚点 id, 用负数和真实按键编号错开
@@ -120,7 +120,7 @@ struct DeviceProfile: Codable, Identifiable, Equatable {
     }
 
     static let dirKeys = ["up", "down", "left", "right"]
-    static let dirLabel = ["up": "上", "down": "下", "left": "左", "right": "右"]
+    static let dirLabel = ["up": L("上"), "down": L("下"), "left": L("左"), "right": L("右")]
 
     // 手写解码, 缺字段就用默认值。合成的 Codable 遇到缺 key 会直接抛错,
     // 结果是"加个新字段就把用户配置清空"——这个坑踩过一次。
@@ -128,7 +128,7 @@ struct DeviceProfile: Codable, Identifiable, Equatable {
         let c = try d.container(keyedBy: CodingKeys.self)
         vendorID  = try c.decodeIfPresent(Int.self, forKey: .vendorID) ?? 0
         productID = try c.decodeIfPresent(Int.self, forKey: .productID) ?? 0
-        name      = try c.decodeIfPresent(String.self, forKey: .name) ?? "手柄"
+        name      = try c.decodeIfPresent(String.self, forKey: .name) ?? L("手柄")
         buttons   = try c.decodeIfPresent([String: ButtonBinding].self, forKey: .buttons) ?? [:]
         stick     = try c.decodeIfPresent([String: Int].self, forKey: .stick) ?? [:]
         stickDirs = try c.decodeIfPresent([String: StickDir].self, forKey: .stickDirs) ?? [:]
@@ -176,8 +176,10 @@ struct Config: Codable {
         pttMaxHold        = v(.pttMaxHold, 60)
         showBatteryInMenuBar = v(.showBatteryInMenuBar, true)
         appearance        = v(.appearance, "system")
+        language          = v(.language, "auto")
         pairCode          = v(.pairCode, "")
         remoteCorners     = v(.remoteCorners, [String]())
+        appProfiles       = v(.appProfiles, [String: AppKeyMap]())
         devices           = v(.devices, [DeviceProfile]())
     }
 
@@ -208,12 +210,18 @@ struct Config: Codable {
     var showBatteryInMenuBar = true
     /// 界面外观: "system" 跟随系统 / "light" 浅色 / "dark" 深色
     var appearance = "system"
+    /// 界面语言: "auto" 跟随系统 / "zh" 中文 / "en" English。
+    /// auto 时只有【简体中文】用中文, 其余一律英文。
+    var language = "auto"
     /// 手机配对码。6 位数字, 只在首次配对时输一次, 之后靠 Cookie 记住。
     /// 重新生成会让所有已配对的手机失效。
     var pairCode = ""
     /// 手机四角直达键绑哪几个 app (bundle ID, 最多 4 个)。
     /// 留空则自动取白名单前四个。
     var remoteCorners: [String] = []
+
+    /// bundleID -> (动作 -> 键位)。用户在「app 档案」页改的东西, 覆盖内置预置。
+    var appProfiles: [String: AppKeyMap] = [:]
 
     var devices: [DeviceProfile] = []
 
@@ -237,7 +245,7 @@ enum AppName {
         switch bid {
         case BundleID.ghostty: return "Ghostty"
         case BundleID.claude:  return "Claude Code"
-        case BundleID.wechat:  return "微信"
+        case BundleID.wechat:  return L("微信")
         case BundleID.chrome:  return "Chrome"
         default: return bid.split(separator: ".").last.map(String.init) ?? bid
         }

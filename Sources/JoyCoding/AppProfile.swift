@@ -1,0 +1,152 @@
+import Foundation
+
+/// 一个键位规格: 修饰键 + 主键, 或者一段文本。
+///
+/// 存成字符串是为了配置文件好读好改, 也方便社区直接贴分享:
+///   "cmd+shift+o"   组合键
+///   "text:继续"      发送文本
+struct KeySpec: Codable, Equatable {
+    var raw: String
+
+    init(_ raw: String) { self.raw = raw }
+    init(from d: Decoder) throws { raw = try d.singleValueContainer().decode(String.self) }
+    func encode(to e: Encoder) throws {
+        var c = e.singleValueContainer(); try c.encode(raw)
+    }
+
+    var isText: Bool { raw.hasPrefix("text:") }
+    var text: String { String(raw.dropFirst(5)) }
+
+    /// 拆成 (修饰键, 主键)。"cmd+shift+o" -> (["cmd","shift"], "o")
+    var parsed: ([String], String)? {
+        guard !isText, !raw.isEmpty else { return nil }
+        var parts = raw.lowercased().split(separator: "+").map(String.init)
+        guard let key = parts.popLast() else { return nil }
+        return (parts, key)
+    }
+
+    /// 给界面看的写法: ⌘⇧O
+    var display: String {
+        if isText { return "「\(text)」" }
+        guard let (mods, key) = parsed else { return L("未设置") }
+        let sym = ["cmd": "⌘", "shift": "⇧", "alt": "⌥", "ctrl": "⌃",
+                   "rightctrl": "⌃", "rightalt": "⌥", "fn": "fn"]
+        let named = ["return": "↩", "escape": "⎋", "tab": "⇥", "delete": "⌫",
+                     "space": "␣", "up": "↑", "down": "↓", "left": "←", "right": "→",
+                     "`": "`"]
+        return mods.compactMap { sym[$0] }.joined()
+             + (named[key] ?? key.uppercased())
+    }
+}
+
+/// 某个 app 下, 各语义动作分别发什么键。
+///
+/// 这一层的存在是为了让「按键映射」保持纯语义 —— 用户配手柄时想的是
+/// 「确认 / 发送」, 不需要知道那个 app 用什么快捷键。知道快捷键的人
+/// 可以在这里改, 不知道的人靠内置预置。
+typealias AppKeyMap = [String: KeySpec]     // actionID -> 键位
+
+enum AppProfiles {
+    /// 用户配置优先, 回落内置预置
+    static func key(_ action: String, app: String) -> KeySpec? {
+        if let k = ConfigStore.shared.config.appProfiles[app]?[action] { return k }
+        return builtin[app]?[action]
+    }
+
+    static func hasAny(_ app: String) -> Bool {
+        builtin[app] != nil || ConfigStore.shared.config.appProfiles[app] != nil
+    }
+
+    /// 内置预置。随 app 发布, 用户不用查快捷键。
+    /// 来源: 各 app 的菜单栏(用无障碍接口读出来的) + 官方文档。
+    static let builtin: [String: AppKeyMap] = [
+        BundleID.claude: [
+            "sessionPrev": .init("ctrl+shift+tab"),
+            "sessionNext": .init("ctrl+tab"),
+            "newSession":  .init("cmd+n"),
+            "modelMenu":   .init("cmd+shift+i"),
+            "effortMenu":  .init("cmd+shift+e"),
+            "mode":        .init("cmd+shift+m"),
+            "diffPane":    .init("cmd+shift+d"),
+            "terminalPane":.init("ctrl+`"),
+            "browserPane": .init("cmd+shift+b"),
+            "sideChat":    .init("cmd+;"),
+            "closePane":   .init("cmd+\\"),
+            "viewMode":    .init("ctrl+o"),
+            "clearLine":   .init("cmd+a"),      // 之后再补一次退格
+        ],
+        BundleID.ghostty: [
+            "sessionPrev": .init("cmd+shift+`"),   // Ghostty 走窗口而不是标签
+            "sessionNext": .init("cmd+`"),
+            "mode":        .init("shift+tab"),     // Codex: 循环 Plan/Pair/Execute
+            "modelMenu":   .init("text:/model"),
+            "clearLine":   .init("ctrl+u"),
+            "interrupt":   .init("ctrl+c"),
+        ],
+        BundleID.wechat: [
+            "sessionPrev":      .init("alt+up"),     // 菜单 Show → Previous Chat
+            "sessionNext":      .init("alt+down"),
+            "wechatNextUnread": .init("cmd+alt+down"),
+            "newSession":       .init("cmd+n"),
+        ],
+        BundleID.chrome: [
+            "sessionPrev": .init("ctrl+shift+tab"),
+            "sessionNext": .init("ctrl+tab"),
+            "navBack":     .init("cmd+["),
+            "navForward":  .init("cmd+]"),
+            "reload":      .init("cmd+r"),
+            "newTab":      .init("cmd+t"),
+            "closeTab":    .init("cmd+w"),
+            "windowNext":  .init("cmd+`"),
+        ],
+        // 以下为预置, 方便不用 Claude Code 的用户开箱即用
+        "com.openai.chat": [                        // ChatGPT
+            "focusInput":  .init("shift+escape"),   // ChatGPT 有这个, Claude 没有
+            "newSession":  .init("cmd+shift+o"),
+            "sideChat":    .init("cmd+shift+s"),    // 切换侧边栏
+            "modelMenu":   .init("text:/"),         // 打 / 开命令菜单
+        ],
+        "com.todesktop.230313mzl4w4u92": [          // Cursor
+            "sessionPrev": .init("cmd+shift+["),
+            "sessionNext": .init("cmd+shift+]"),
+            "newSession":  .init("cmd+n"),
+            "terminalPane":.init("ctrl+`"),
+        ],
+        "com.microsoft.VSCode": [
+            "sessionPrev": .init("cmd+shift+["),
+            "sessionNext": .init("cmd+shift+]"),
+            "newSession":  .init("cmd+n"),
+            "terminalPane":.init("ctrl+`"),
+            "closeTab":    .init("cmd+w"),
+        ],
+        "com.googlecode.iterm2": [
+            "sessionPrev": .init("cmd+shift+["),
+            "sessionNext": .init("cmd+shift+]"),
+            "clearLine":   .init("ctrl+u"),
+            "interrupt":   .init("ctrl+c"),
+        ],
+        "com.apple.Terminal": [
+            "sessionPrev": .init("cmd+shift+["),
+            "sessionNext": .init("cmd+shift+]"),
+            "clearLine":   .init("ctrl+u"),
+            "interrupt":   .init("ctrl+c"),
+        ],
+    ]
+
+    /// 有内置预置、但还没加进白名单的 app（且本机装了的）。
+    /// 「通用」页据此推荐 —— 否则用户不会知道 ChatGPT、Cursor 这些
+    /// 已经有现成键位在等他。
+    static func suggestions(installed: (String) -> Bool, whitelist: [String]) -> [String] {
+        builtin.keys.filter { !whitelist.contains($0) && installed($0) }.sorted()
+    }
+
+    /// 哪些动作值得在档案里配。纯通用的(回车/退格/翻页)不需要 ——
+    /// 它们在所有 app 里都一样。
+    static let configurable = [
+        "sessionPrev", "sessionNext", "newSession", "focusInput",
+        "modelMenu", "effortMenu", "mode", "clearLine", "interrupt",
+        "diffPane", "terminalPane", "browserPane", "sideChat", "closePane",
+        "viewMode", "navBack", "navForward", "reload", "newTab", "closeTab",
+        "windowNext", "wechatNextUnread",
+    ]
+}
