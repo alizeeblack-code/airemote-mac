@@ -256,8 +256,14 @@ enum Actions {
 
     /// 在指定 app 下有效的动作。手机界面靠它动态过滤 ——
     /// 换个 app 就变死键的动作不该占着屏幕。
+    /// onlyIn 是 app 档案系统之前的产物 —— 它把 diffPane / interrupt 这些锁死在
+    /// 一个 app 上。可现在「这个 app 支不支持某动作」的判据应该是档案里配没配键:
+    /// 给 Codex 配了 diffPane, 它就该能用。所以两者取并集(只增不减)。
     static func available(in app: String) -> [ActionDef] {
-        all.filter { $0.onlyIn == nil || $0.onlyIn == app }
+        all.filter {
+            $0.onlyIn == nil || $0.onlyIn == app
+                || AppProfiles.key($0.id, app: app) != nil
+        }
     }
 
     // MARK: - 语音 (按下/松开语义, 不走普通动作)

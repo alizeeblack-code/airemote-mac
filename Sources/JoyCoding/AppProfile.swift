@@ -59,6 +59,24 @@ enum AppProfiles {
 
     /// 内置预置。随 app 发布, 用户不用查快捷键。
     /// 来源: 各 app 的菜单栏(用无障碍接口读出来的) + 官方文档。
+    private static let openAI: [String: KeySpec] = [
+        "sessionPrev":  .init("cmd+shift+["),   // 菜单 Previous Chat
+        "sessionNext":  .init("cmd+shift+]"),   // 菜单 Next Chat
+        "newSession":   .init("cmd+n"),         // 菜单 New Chat
+        "clearLine":    .init("cmd+a"),         // 菜单 Select All; Actions 会自动补退格
+        "sideChat":     .init("cmd+b"),         // 菜单 Toggle Sidebar
+        "terminalPane": .init("ctrl+`"),        // 菜单 Open Terminal
+        "diffPane":     .init("cmd+alt+b"),     // 菜单 Toggle Review Panel
+        "navBack":      .init("cmd+["),         // 菜单 Back
+        "navForward":   .init("cmd+]"),         // 菜单 Forward
+        // 下面两个不在菜单里, 这个 app 又不向辅助功能接口暴露内部元素, 没法实测。
+        // 按错了也只是没反应, 不会有副作用。
+        "interrupt":    .init("escape"),
+        "focusInput":   .init("shift+escape"),
+        // modelMenu 故意不配: text: 规格会在打完字后自动回车, 在 ChatGPT 里
+        // 等于把 "/" 当成消息发出去。得先确认斜杠菜单的行为再说。
+    ]
+
     static let builtin: [String: AppKeyMap] = [
         BundleID.claude: [
             "sessionPrev": .init("ctrl+shift+tab"),
@@ -100,12 +118,14 @@ enum AppProfiles {
             "windowNext":  .init("cmd+`"),
         ],
         // 以下为预置, 方便不用 Claude Code 的用户开箱即用
-        "com.openai.chat": [                        // ChatGPT
-            "focusInput":  .init("shift+escape"),   // ChatGPT 有这个, Claude 没有
-            "newSession":  .init("cmd+shift+o"),
-            "sideChat":    .init("cmd+shift+s"),    // 切换侧边栏
-            "modelMenu":   .init("text:/"),         // 打 / 开命令菜单
-        ],
+        // ChatGPT 和 Codex 现在是同一个 app: /Applications/ChatGPT.app 的
+        // bundle id 就是 com.openai.codex(签名 OpenAI OpCo, 包里带 codex 二进制
+        // 和 CodexDockTilePlugin)。旧的 com.openai.chat 在系统里已经解析不到,
+        // 所以之前那份档案永远不会命中, 也永远不会出现在推荐里。
+        //
+        // 下面标「菜单」的都是从 app 自己的菜单栏读出来的实测值。
+        "com.openai.codex": openAI,
+        "com.openai.chat":  openAI,          // 留给旧版本
         "com.todesktop.230313mzl4w4u92": [          // Cursor
             "sessionPrev": .init("cmd+shift+["),
             "sessionNext": .init("cmd+shift+]"),

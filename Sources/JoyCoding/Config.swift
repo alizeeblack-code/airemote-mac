@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 // MARK: - 按键手势
@@ -244,14 +245,32 @@ struct Config: Codable {
 }
 
 enum AppName {
+    private static var cache: [String: String] = [:]
+
     static func of(_ bid: String) -> String {
         switch bid {
         case BundleID.ghostty: return "Ghostty"
         case BundleID.claude:  return "Claude Code"
         case BundleID.wechat:  return L("微信")
         case BundleID.chrome:  return "Chrome"
-        default: return bid.split(separator: ".").last.map(String.init) ?? bid
+        default: break
         }
+        if let c = cache[bid] { return c }
+        // 取 app 包里的真实显示名。取 bundle id 最后一段的老做法会得到
+        // "codex"(实际是 ChatGPT)、"VSCode"、"xinWeChat" 这种。
+        let name = installedName(bid)
+            ?? bid.split(separator: ".").last.map(String.init) ?? bid
+        cache[bid] = name
+        return name
+    }
+
+    private static func installedName(_ bid: String) -> String? {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid),
+              let info = Bundle(url: url)?.infoDictionary else { return nil }
+        for k in ["CFBundleDisplayName", "CFBundleName"] {
+            if let v = info[k] as? String, !v.isEmpty { return v }
+        }
+        return url.deletingPathExtension().lastPathComponent
     }
 }
 
