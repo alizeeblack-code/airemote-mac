@@ -58,6 +58,7 @@ enum DefaultProfiles {
             // 截去开游戏覆盖层, 绑什么都不会生效
         ])
         p.sticks = ["hat": dpad, "right": rightStick]
+        p.stickModes = ["right": "mouse"]   // 右摇杆默认推鼠标
         p.overrides = [BundleID.chrome: AppOverride(
             buttons: b([2: "reload", 4: "navBack"]))]
         return p
@@ -86,6 +87,7 @@ enum DefaultProfiles {
             // 13 = PS 键留空, 多半和 Pro 的 Home 一样被系统截走
         ])
         p.sticks = ["hat": dpad, "right": rightStick]
+        p.stickModes = ["right": "mouse"]   // 右摇杆默认推鼠标
         p.overrides = [BundleID.chrome: AppOverride(
             buttons: b([4: "reload", 1: "navBack"]))]
         return p

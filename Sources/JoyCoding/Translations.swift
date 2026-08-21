@@ -18,6 +18,7 @@ enum Translations {
         "pttTestHint": "点「测试」—— JoyCoding 会按住这个键 2 秒。听写工具起来了就说明键是对的。",
         "pttInstalledHint": "检测到这台 Mac 上装了 %@。请确认上面的键和它里面设的一致 —— JoyCoding 读不到别的 app 的快捷键设置。",
         "ifaceHint": "其余网段连端口都看不到。换了网络后要重新选一次地址。",
+        "mouseModeHint": "推摇杆移动光标，推得越远越快。中位会自动学习。",
         "pairBtn": "配对",
         "langHint": "跟随系统时，只有简体中文环境显示中文，其余一律英文。",
         "axHowto": "在「系统设置 → 隐私与安全性 → 辅助功能」里勾选 JoyCoding，"
@@ -264,6 +265,9 @@ enum Translations {
         "已配 %@ 键": "%@ buttons mapped",
         "只监听选中的这个地址": "Listen on this address only",
         "ifaceHint": "Other networks will not even see the port. Re-pick the address after switching networks.",
+        "按方向绑动作": "Bind directions",
+        "推鼠标": "Move pointer",
+        "mouseModeHint": "Push to move the pointer — further means faster. The resting centre is learned automatically.",
         "偏好": "Preferences",
         "菜单栏显示手柄电量": "Show battery in menu bar",
         "langHint": "In System mode, Chinese is used only for Simplified Chinese; "

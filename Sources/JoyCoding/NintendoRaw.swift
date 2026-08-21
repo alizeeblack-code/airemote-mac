@@ -36,11 +36,24 @@ enum NintendoRaw {
         return out
     }
 
-    /// 模拟摇杆 -> 八方向。12 位打包, 中位约 0x800。
+    /// 12 位打包, 中位约 0x800。归一化到 -1...1。
+    /// 八方向那条路会把幅度扔掉, 但鼠标要靠幅度决定速度, 所以单独留一个出口。
+    private static func stickVec(_ x: Int, _ y: Int) -> (Double, Double) {
+        (Double(x - 0x800) / Double(0x800), Double(y - 0x800) / Double(0x800))
+    }
+
+    /// 右摇杆的模拟量。给鼠标用 —— 它需要"推了多远", 不是"推向哪个方向"。
+    static func rightStickVec(_ b: UnsafeBufferPointer<UInt8>) -> (Double, Double)? {
+        guard b.count >= 12 else { return nil }
+        return stickVec(Int(b[9]) | ((Int(b[10]) & 0x0F) << 8),
+                        (Int(b[10]) >> 4) | (Int(b[11]) << 4))
+    }
+
+    /// 模拟摇杆 -> 八方向。
     /// 死区取满量程的 40%, 太小会漂、太大要推到底才认。
+    /// 注意这个 40% 是【离散成八方向】用的, 和鼠标的死区不是一回事。
     private static func stickDir(_ x: Int, _ y: Int) -> Int? {
-        let dx = Double(x - 0x800) / Double(0x800)
-        let dy = Double(y - 0x800) / Double(0x800)
+        let (dx, dy) = stickVec(x, y)
         guard dx * dx + dy * dy > 0.16 else { return nil }        // 0.4²
         // 摇杆 y 轴向上为正, 帽子开关 0 是正上
         var a = atan2(dx, dy) * 180 / .pi

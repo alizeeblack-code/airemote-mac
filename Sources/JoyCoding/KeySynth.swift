@@ -100,6 +100,9 @@ enum KeySynth {
     /// 全屏 TUI 的终端滚动缓冲区又根本不生效。滚轮对两者都有效。
     /// 滚轮按鼠标位置投递, 所以指针不在目标窗口上时先临时挪过去再挪回来。
     static func scroll(lines: Int32) {
+        // 下面要把光标挪走再挪回, 这期间右摇杆不能同时推
+        MousePad.suspended = true
+        defer { MousePad.suspended = false }
         let origin = CGEvent(source: nil)?.location
         var moved = false
 
@@ -125,6 +128,8 @@ enum KeySynth {
     /// 和菜单都查过), Web 界面的元素又不暴露给无障碍接口, 点不到。
     /// 好在聊天类界面的输入框永远在窗口底部, 按比例点得到。
     static func click(at p: CGPoint) {
+        MousePad.suspended = true
+        defer { MousePad.suspended = false }
         let origin = CGEvent(source: nil)?.location
         let src = CGEventSource(stateID: .hidSystemState)
         CGEvent(mouseEventSource: src, mouseType: .leftMouseDown,

@@ -83,6 +83,12 @@ struct DeviceProfile: Codable, Identifiable, Equatable {
     var sticks: [String: [String: StickDir]] = [:]
     /// bundleID -> 该 app 的覆盖层。上面的 buttons/stickDirs 就是基础层。
     var overrides: [String: AppOverride] = [:]
+    /// 通道 -> 整体模式。目前只有 "mouse"(右摇杆推鼠标)。
+    /// 鼠标要按"推了多远"决定速度, 而 sticks 那套是"方向 -> 动作", 带不了幅度,
+    /// 所以它不是四个方向各绑一个动作, 而是整个通道换一种行为。
+    var stickModes: [String: String] = [:]
+
+    func stickMode(_ ch: StickChannel) -> String? { stickModes[ch.rawValue] }
 
     var id: String { DeviceProfile.key(vendorID, productID) }
 
@@ -137,6 +143,15 @@ struct DeviceProfile: Codable, Identifiable, Equatable {
         // 旧配置只有一组方向, 归到 hat 通道
         if sticks.isEmpty && !stickDirs.isEmpty { sticks[StickChannel.hat.rawValue] = stickDirs }
         overrides = try c.decodeIfPresent([String: AppOverride].self, forKey: .overrides) ?? [:]
+        stickModes = try c.decodeIfPresent([String: String].self, forKey: .stickModes) ?? [:]
+
+        // 右摇杆原来默认绑方向键。没被用户改过就迁成鼠标 —— 改过的不动,
+        // 免得把人家自己的设置覆盖掉。
+        if stickModes[StickChannel.right.rawValue] == nil,
+           let r = sticks[StickChannel.right.rawValue],
+           DeviceProfile.isDefaultArrows(r) {
+            stickModes[StickChannel.right.rawValue] = "mouse"
+        }
 
         // 从旧格式迁移。老的向导按 上/下/左/右 顺序绑的就是这四个动作。
         if stickDirs.isEmpty && !stick.isEmpty {
@@ -147,6 +162,13 @@ struct DeviceProfile: Codable, Identifiable, Equatable {
                 stickDirs[dir] = StickDir(hat: hat, action: action)
             }
         }
+    }
+
+    /// 右摇杆是不是还停在"四个方向 = 四个方向键"的出厂值
+    static func isDefaultArrows(_ d: [String: StickDir]) -> Bool {
+        let want = ["up": "up", "down": "down", "left": "left", "right": "right"]
+        guard d.count == want.count else { return false }
+        return want.allSatisfy { d[$0.key]?.action == $0.value }
     }
 
     static func key(_ v: Int, _ p: Int) -> String {

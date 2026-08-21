@@ -336,7 +336,22 @@ struct MappingView: View {
                 Text(a.label).font(.system(.title3, design: .rounded).weight(.bold))
                 Spacer()
             }
-            ForEach(DeviceProfile.dirKeys, id: \.self) { dir in dirRow(d, ch, dir) }
+            // 右摇杆可以整体当鼠标。那种模式下"四个方向各绑什么"是被绕过的,
+            // 所以不能再把它们列出来 —— 否则界面显示的和实际行为对不上。
+            if ch == .right {
+                Picker("", selection: Binding(
+                    get: { profile?.stickMode(.right) ?? "keys" },
+                    set: { setStickMode(d, $0) })) {
+                    Text(L("按方向绑动作")).tag("keys")
+                    Text(L("推鼠标")).tag("mouse")
+                }
+                .pickerStyle(.segmented).labelsHidden().font(.caption)
+            }
+            if !(ch == .right && profile?.stickMode(.right) == "mouse") {
+                ForEach(DeviceProfile.dirKeys, id: \.self) { dir in dirRow(d, ch, dir) }
+            } else {
+                Text(L("mouseModeHint")).font(.caption).foregroundStyle(.secondary)
+            }
         }
         .padding(9)
         .frame(width: width)
@@ -348,6 +363,13 @@ struct MappingView: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(hot ? Color.accentColor : Color.primary.opacity(0.16),
                         lineWidth: hot ? 2 : 1))
+    }
+
+    private func setStickMode(_ d: ConnectedDevice, _ mode: String) {
+        guard let i = ConfigStore.shared.config.devices
+            .firstIndex(where: { $0.id == DeviceProfile.key(d.vendorID, d.productID) }) else { return }
+        ConfigStore.shared.config.devices[i]
+            .stickModes[StickChannel.right.rawValue] = mode
     }
 
     private func dirRow(_ d: ConnectedDevice, _ ch: StickChannel, _ dir: String) -> some View {

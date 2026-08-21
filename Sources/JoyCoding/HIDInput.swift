@@ -187,8 +187,16 @@ final class HIDInput: ObservableObject {
 
     /// 原始报告解析出的状态。和元素路径复用同一套手势/动作逻辑,
     /// 只是入口不同 —— 这样 Pro 手柄和 Joy-Con 的行为完全一致。
-    func injectRaw(deviceID: String, buttons: Set<Int>, dirs: [StickChannel: Int?]) {
+    func injectRaw(deviceID: String, buttons: Set<Int>, dirs: [StickChannel: Int?],
+                   rightVec: (Double, Double)? = nil) {
         rawDevices.insert(deviceID)
+
+        // 右摇杆整体绑成鼠标时, 幅度直接喂给 MousePad, 不再走"方向 -> 动作"。
+        // 报告是 ~60Hz 持续来的, 所以这里就是天然的刷新循环。
+        let mouseCh = profile(deviceID)?.stickMode(.right) == "mouse"
+        if mouseCh {
+            MousePad.apply(rightVec.map { (x: $0.0, y: $0.1) })
+        }
 
         let prev = rawButtons[deviceID] ?? []
         rawButtons[deviceID] = buttons
@@ -196,6 +204,7 @@ final class HIDInput: ObservableObject {
         for n in prev.subtracting(buttons) { onButton(n, down: false, device: deviceID) }
 
         for (ch, dir) in dirs {
+            if mouseCh && ch == .right { continue }   // 已经当鼠标用了
             let key = "\(deviceID)/\(ch.rawValue)"
             if lastHat[key] ?? -1 == dir { continue }
             lastHat[key] = dir

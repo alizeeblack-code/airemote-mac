@@ -116,13 +116,15 @@ final class JoyConBattery: ObservableObject {
                 .hat:   NintendoRaw.hat(b) ?? NintendoRaw.leftStick(b),
                 .right: NintendoRaw.rightStick(b),
             ]
+            let rvec = NintendoRaw.rightStickVec(b)
             let nib = Int(b[2]) >> 4
             DispatchQueue.main.async {
                 guard let sender, let k = self.idByPointer[sender] else { return }
                 self.levels[k] = JoyConBattery.coarseToPercent((nib & 0x0E) / 2)
                 self.charging[k] = (nib & 0x01) != 0
                 self.raw[k] = L("完整报告")
-                HIDInput.shared.injectRaw(deviceID: k, buttons: btns, dirs: dirs)
+                HIDInput.shared.injectRaw(deviceID: k, buttons: btns, dirs: dirs,
+                                          rightVec: rvec)
             }
             return
         }
