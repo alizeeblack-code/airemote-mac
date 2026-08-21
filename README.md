@@ -99,7 +99,7 @@ Applications, open.
 **Or build it yourself** (needs Xcode command line tools):
 
 ```bash
-git clone https://github.com/YOURNAME/joycoding.git
+git clone https://github.com/alizeeblack-code/joycoding.git
 cd joycoding && ./build.sh --no-notarize
 ```
 
