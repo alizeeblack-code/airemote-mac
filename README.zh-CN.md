@@ -16,7 +16,7 @@
 不想拿手柄的时候，手机也能干同样的事。
 
 <div align="center">
-<img src="docs/images/mapping.png" width="760" alt="映射界面">
+<img src="docs/images/zh/mapping.png" width="760" alt="映射界面">
 </div>
 
 ## 为什么做这个
@@ -32,13 +32,52 @@
 ## 特性
 
 - 支持**任何 HID 手柄** —— Joy-Con（左/右）、Switch Pro、PlayStation 等
-- **按 app 分层**：一套基础映射 + 各 app 的覆盖
+- **两层独立的 app 适配**（下面详述）
 - 每颗键都有**单击 / 双击 / 长按**三层
 - **按住说话**可以合成裸修饰键（比如按住左 Control）
 - **手机遥控**走局域网，6 位配对码只输一次
 - 任天堂手柄的**电量显示**（macOS 完全不暴露这个，做法见 [文档](docs/battery.md)）
 - 配置时按键**实时点亮**，不用猜编号
+- **9 个 app 的键位预置开箱即用** —— Claude Code、ChatGPT、Cursor、
+  VS Code、Ghostty、iTerm2、Terminal、Chrome、微信
 - 内置默认配置，插上手柄就能用
+
+## 两层设计，以及为什么
+
+按键绑定保持**纯语义**。你把 `A` 绑成「确认 / 发送」，而不是绑成某个快捷键。
+它具体发什么键，是另一层决定的：
+
+```
+按键映射       A = 确认 / 发送            ← 语义，永远不变
+                    ↓
+app 键位档案   Claude Code ：⌃⇥          ← 只有这层需要知道快捷键
+               ChatGPT     ：⇧⎋
+               Chrome      ：⌃⇥
+```
+
+分开的意义在于：**大部分人并不知道自己那个 app 的快捷键**。
+ChatGPT 聚焦输入框是 `⇧⎋`，而 Claude Code 压根没有这个快捷键。
+所以 JoyCoding 内置了常见 app 的档案，你也可以在
+**总览 → 点某个 app 的列头**里自己录制。
+
+在这之上，按键还能**按 app 覆盖**：`Y` 在哪都是退格，但在 Chrome 里是「后退」，
+因为浏览器里根本没有文字可删。
+
+<p align="center">
+<img src="docs/images/zh/overview.png" width="760" alt="总览 —— 每个按键在每个 app 里的落点">
+</p>
+<p align="center"><sub>
+<b>总览</b>把两层摊开并排看：左边是语义动作，右边各列是它在每个 app 里变成了什么。
+灰色 <code>↳</code> 表示「沿用基础层」，加粗表示这个 app 覆盖了它。
+</sub></p>
+
+<p align="center">
+<img src="docs/images/zh/profile.png" width="620" alt="app 键位档案">
+</p>
+<p align="center"><sub>
+点列头就能编辑那个 app 的档案。<b>录制</b>直接捕获真实按键；某行留空表示这个 app
+没有对应快捷键，按下去不会有反应。
+</sub></p>
 
 ## 支持的手柄
 
@@ -70,9 +109,9 @@ cd joycoding && ./build.sh --no-notarize
 ## 手机遥控
 
 <div align="center">
-<img src="docs/images/pair.png" width="230" alt="配对">
+<img src="docs/images/zh/pair.png" width="230" alt="配对">
 &nbsp;&nbsp;&nbsp;
-<img src="docs/images/remote.png" width="230" alt="遥控">
+<img src="docs/images/zh/remote.png" width="230" alt="遥控">
 </div>
 
 打开**设置 → 手机遥控**，扫二维码，或者手输一次 6 位码。地址就是
@@ -89,12 +128,14 @@ Safari 里「添加到主屏幕」就能全屏运行。
 flowchart LR
   C[手柄<br/>IOHIDManager] --> A
   P[手机<br/>HTTP :27123] --> A
-  A[动作表<br/>+ 按 app 分层] --> K[CGEvent<br/>按键 / 滚轮 / 修饰键]
+  A[语义动作<br/>+ 按 app 覆盖] --> B[app 键位档案]
+  B --> K[CGEvent<br/>按键 / 滚轮 / 修饰键]
   K --> M[前台 app]
 ```
 
 一张动作表同时服务两个入口，所以加一个动作，手柄和手机同时就有了。
-一个动作具体发什么键，是**按下那一刻**根据前台 app 决定的。
+**代码里没有任何硬编码的 app 快捷键**——全在可编辑的档案里，
+所以支持一个新 app 是填表的事，不是改代码。
 
 ## 已知限制
 

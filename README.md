@@ -17,7 +17,7 @@ switch sessions from a Joy-Con in one hand, while the other stays on the mouse.
 Or leave the controller in a drawer and use your phone.
 
 <div align="center">
-<img src="docs/images/mapping.png" width="760" alt="Mapping screen">
+<img src="docs/images/en/mapping.png" width="760" alt="Mapping screen">
 </div>
 
 ## Why
@@ -33,13 +33,54 @@ None of that needs a keyboard. JoyCoding maps that loop onto a controller:
 ## Features
 
 - Works with **any HID gamepad** — Joy-Con (L/R), Switch Pro, PlayStation, and more
-- **Per-app layers**: a base mapping plus overrides for individual apps
+- **Two independent layers of per-app behaviour** (see below)
 - **Tap / double-tap / long-press** on every button
 - **Push-to-talk** that can synthesize a bare modifier key (e.g. hold left Control)
 - **Phone remote** over your LAN — pair once with a 6-digit code
 - **Battery level** for Nintendo controllers (macOS does not expose this; see [docs](docs/battery.md))
 - Live button highlighting while you map, so you never guess a button number
+- **Key profiles for 9 apps out of the box** — Claude Code, ChatGPT, Cursor,
+  VS Code, Ghostty, iTerm2, Terminal, Chrome, WeChat
 - Ships with sensible defaults — plug in a controller and it just works
+
+## Two layers, and why
+
+Button bindings stay **purely semantic**. You bind `A` to *Confirm / Send*, never
+to a keystroke. What keystroke that becomes is decided separately:
+
+```
+Button mapping     A = Confirm / Send          ← semantic, never changes
+                        ↓
+App key profile    Claude Code : ⌃⇥            ← only this layer knows shortcuts
+                   ChatGPT     : ⇧⎋
+                   Chrome      : ⌃⇥
+```
+
+That split matters because **most people do not know their app's shortcuts** —
+ChatGPT focuses its composer with `⇧⎋`, something Claude Code has no shortcut
+for at all. So JoyCoding ships profiles for common apps, and you can record any
+shortcut yourself from **Overview → click an app column**.
+
+On top of that, a button can be **overridden per app**: `Y` is backspace
+everywhere, but *Back* in Chrome, because a browser has no text to delete.
+
+<p align="center">
+<img src="docs/images/en/overview.png" width="760" alt="Overview — every button across every app">
+</p>
+<p align="center"><sub>
+<b>Overview</b> lays the two layers side by side: the semantic action on the left,
+what each app turns it into across the columns. Greyed <code>↳</code> means
+"inherits the base layer"; bold means this app overrides it.
+</sub></p>
+
+<p align="center">
+<img src="docs/images/en/profile.png" width="620" alt="App key profile">
+</p>
+<p align="center"><sub>
+Click a column header to edit that app's profile. <b>Record</b> captures a real
+keystroke; leaving a row empty means the app has no such shortcut and the button
+stays inert there.
+</sub></p>
 
 ## Supported controllers
 
@@ -74,9 +115,9 @@ cd joycoding && ./build.sh --no-notarize
 ## Phone remote
 
 <div align="center">
-<img src="docs/images/pair.png" width="230" alt="Pairing">
+<img src="docs/images/en/pair.png" width="230" alt="Pairing">
 &nbsp;&nbsp;&nbsp;
-<img src="docs/images/remote.png" width="230" alt="Remote">
+<img src="docs/images/en/remote.png" width="230" alt="Remote">
 </div>
 
 Open **Settings → Phone Remote**, scan the QR code or type the 6-digit code once.
@@ -95,13 +136,15 @@ changes with whatever app is in front.
 flowchart LR
   C[Controller<br/>IOHIDManager] --> A
   P[Phone<br/>HTTP :27123] --> A
-  A[Action table<br/>+ per-app layers] --> K[CGEvent<br/>keys / scroll / modifiers]
+  A[Semantic action<br/>+ per-app override] --> B[App key profile]
+  B --> K[CGEvent<br/>keys / scroll / modifiers]
   K --> M[Frontmost app]
 ```
 
 One action table serves both inputs, so adding an action makes it available to
-the controller and the phone at once. Which keystroke an action sends is decided
-at the moment you press it, based on what app is in front.
+the controller and the phone at once. No app-specific keystroke is hardcoded —
+they all live in editable profiles, which is what makes adding a new app a
+matter of filling in a table rather than changing code.
 
 ## Known limits
 
