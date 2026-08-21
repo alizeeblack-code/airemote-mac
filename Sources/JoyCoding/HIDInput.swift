@@ -81,7 +81,11 @@ final class HIDInput: ObservableObject {
         IOHIDManagerRegisterDeviceRemovalCallback(mgr, { ctx, _, _, _ in
             guard let ctx else { return }
             let s = Unmanaged<HIDInput>.fromOpaque(ctx).takeUnretainedValue()
-            DispatchQueue.main.async { s.refreshDevices() }
+            DispatchQueue.main.async {
+                // 手柄拔了/断连了, 按住型的东西要放开, 否则左键一直按着
+                MousePad.releaseAll()
+                s.refreshDevices()
+            }
         }, ctx)
 
         IOHIDManagerScheduleWithRunLoop(mgr, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
@@ -229,9 +233,13 @@ final class HIDInput: ObservableObject {
         if down { lastDispatch = L("按键 %@ [%@] -> %@", String(n), device, b.tap ?? "?") }
 
         // 语音是按下/松开语义, 不参与单击双击长按
-        if b.tap == "ptt" {
-            down ? Actions.pttStart() : Actions.pttStop()
-            return
+        // 按住型动作: 按下和松开各有含义, 不参与单击/双击/长按那套
+        switch b.tap {
+        case "ptt":
+            down ? Actions.pttStart() : Actions.pttStop(); return
+        case "mouseLeft":
+            down ? MousePad.leftDown() : MousePad.leftUp(); return
+        default: break
         }
 
         let k = "\(device)#\(n)"

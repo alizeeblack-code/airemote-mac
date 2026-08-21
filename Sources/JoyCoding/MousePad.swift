@@ -36,6 +36,32 @@ enum MousePad {
     /// scroll() / click() 会把光标挪走再挪回来。那期间不能插手, 否则两边抢。
     static var suspended = false
 
+    // MARK: - 左键
+    private static var leftHeld = false
+
+    /// 按下不放。松开前的移动要发 leftMouseDragged 而不是 mouseMoved ——
+    /// 很多控件(拖选、拖窗口)只认拖拽事件, 发 mouseMoved 它们当没按住。
+    static func leftDown() {
+        guard !leftHeld, let p = CGEvent(source: nil)?.location else { return }
+        leftHeld = true
+        post(.leftMouseDown, at: p)
+    }
+
+    static func leftUp() {
+        guard leftHeld, let p = CGEvent(source: nil)?.location else { return }
+        leftHeld = false
+        post(.leftMouseUp, at: p)
+    }
+
+    /// 手柄断连时兜底 —— 否则左键会一直按着, 和之前 PTT 卡修饰键一个道理
+    static func releaseAll() { leftUp() }
+
+    private static func post(_ type: CGEventType, at p: CGPoint) {
+        CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState),
+                mouseType: type, mouseCursorPosition: p, mouseButton: .left)?
+            .post(tap: .cghidEventTap)
+    }
+
     // 慢速推时每帧的位移不足 1 点。直接取整会被抹掉, 所以把余数攒着。
     private static var carry = (x: 0.0, y: 0.0)
 
@@ -64,12 +90,9 @@ enum MousePad {
         guard let cur = CGEvent(source: nil)?.location else { return }
         let target = clampToScreens(CGPoint(x: cur.x + stepX, y: cur.y + stepY))
 
-        // 用 mouseMoved 事件而不是 CGWarpMouseCursorPosition:
+        // 用事件而不是 CGWarpMouseCursorPosition:
         // Warp 不产生事件(靠鼠标增量的应用收不到), 而且之后短时间内会抑制移动。
-        let src = CGEventSource(stateID: .hidSystemState)
-        CGEvent(mouseEventSource: src, mouseType: .mouseMoved,
-                mouseCursorPosition: target, mouseButton: .left)?
-            .post(tap: .cghidEventTap)
+        post(leftHeld ? .leftMouseDragged : .mouseMoved, at: target)
     }
 
     /// 别让光标跑到所有显示器之外。多屏时按"落在哪块屏里"判断,

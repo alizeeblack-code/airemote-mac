@@ -102,6 +102,8 @@ enum Actions {
         ActionDef("down", L("下"), repeatable: true) { if ctx.inTarget() { key([], "down") } },
         ActionDef("left", L("左"), repeatable: true) { if ctx.inTarget() { key([], "left") } },
         ActionDef("right", L("右"), repeatable: true) { if ctx.inTarget() { key([], "right") } },
+        // 按下/松开另行处理(见 HIDInput 的 holdStyle) —— 松开才放开, 这样能拖
+        ActionDef("mouseLeft", L("鼠标左键"), L("按住可拖动")) { },
         ActionDef("ptt", L("语音输入"), L("按住录, 松开出字")) { /* 按下/松开另行处理 */ },
         ActionDef("focusInput", L("聚焦输入框"), L("点一下底部输入区")) {
             // Claude Code / 微信都没有聚焦输入框的快捷键(文档和菜单都查过),
