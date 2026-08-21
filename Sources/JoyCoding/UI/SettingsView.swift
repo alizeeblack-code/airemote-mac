@@ -14,15 +14,15 @@ struct SettingsView: View {
 
     var body: some View {
         TabView(selection: $nav.tab) {
-            MappingView().tabItem { Label("按键映射", systemImage: "gamecontroller") }
+            MappingView().tabItem { Label(L("按键映射"), systemImage: "gamecontroller") }
                 .tag(SettingsNav.Tab.mapping)
-            OverviewView().tabItem { Label("总览", systemImage: "tablecells") }
+            OverviewView().tabItem { Label(L("总览"), systemImage: "tablecells") }
                 .tag(SettingsNav.Tab.overview)
-            GeneralView().tabItem { Label("通用", systemImage: "gearshape") }
+            GeneralView().tabItem { Label(L("通用"), systemImage: "gearshape") }
                 .tag(SettingsNav.Tab.general)
-            VoiceView().tabItem { Label("语音", systemImage: "mic") }
+            VoiceView().tabItem { Label(L("语音"), systemImage: "mic") }
                 .tag(SettingsNav.Tab.voice)
-            RemoteView().tabItem { Label("手机遥控", systemImage: "iphone") }
+            RemoteView().tabItem { Label(L("手机遥控"), systemImage: "iphone") }
                 .tag(SettingsNav.Tab.remote)
         }
         .frame(minWidth: 1040, minHeight: 680)
@@ -39,65 +39,75 @@ struct GeneralView: View {
 
     var body: some View {
         Form {
-            Section {
-                Toggle("只在下列 app 里响应通用按键", isOn: $store.config.restrictToTargets)
-                Text("关掉的话所有 app 都生效。不建议——Finder 里回车是重命名，"
-                     + "对话框里回车是确定，手柄放桌上碰一下就可能出事。\n"
-                     + "语音和切换 app 不受此限制，任何地方都能用。")
-                    .font(.subheadline).foregroundStyle(.secondary)
-            }
-
-            Section("权限") {
+            Section(L("权限")) {
                 HStack {
-                    Label(hasAX ? "辅助功能已授权" : "辅助功能未授权",
+                    Label(hasAX ? L("辅助功能已授权") : L("辅助功能未授权"),
                           systemImage: hasAX ? "checkmark.shield.fill"
                                              : "exclamationmark.shield.fill")
                         .foregroundStyle(hasAX ? Color.green : Color.orange)
                     Spacer()
                     if !hasAX {
-                        Button("去授权") { KeySynth.openAccessibilityPane() }
+                        Button(L("去授权")) { KeySynth.openAccessibilityPane() }
                     }
-                    Button("重启 JoyCoding") { KeySynth.relaunch() }
+                    Button(L("重启 JoyCoding")) { KeySynth.relaunch() }
+                        .help(L("axGranted"))
                 }
-                Text(hasAX
-                     ? "手柄按键要靠它翻译成键盘事件，这一项是整个 app 的前提。"
-                     : "在「系统设置 → 隐私与安全性 → 辅助功能」里勾选 JoyCoding，"
-                       + "然后点上面的「重启 JoyCoding」—— 授权对已运行的进程不会即时生效。")
-                    .font(.caption).foregroundStyle(.secondary)
+                // 已授权就不再占一行说明, 只在没授权时讲怎么做
+                if !hasAX {
+                    Text(L("axHowto"))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
 
-            Section("启动") {
-                Toggle("开机自动启动", isOn: Binding(
+            Section(L("偏好")) {
+                Toggle(L("开机自动启动"), isOn: Binding(
                     get: { launchAtLogin },
                     set: { on in
                         LaunchAtLogin.set(on)
                         launchAtLogin = LaunchAtLogin.isEnabled
                     }))
-                Text(LaunchAtLogin.statusText)
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+                    .help(LaunchAtLogin.statusText)
 
-            Section("外观") {
-                Picker("界面主题", selection: $store.config.appearance) {
-                    Text("跟随系统").tag("system")
-                    Text("浅色").tag("light")
-                    Text("深色").tag("dark")
+                Picker(L("界面语言"), selection: $store.config.language) {
+                    Text(L("跟随系统")).tag("auto")
+                    Text("中文").tag("zh")
+                    Text("English").tag("en")
+                }
+                .pickerStyle(.segmented)
+                .help(L("langHint"))
+
+                Picker(L("界面主题"), selection: $store.config.appearance) {
+                    Text(L("跟随系统")).tag("system")
+                    Text(L("浅色")).tag("light")
+                    Text(L("深色")).tag("dark")
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: store.config.appearance) { Appearance.apply($0) }
+
+                Toggle(L("菜单栏显示手柄电量"), isOn: $store.config.showBatteryInMenuBar)
+                    .help(L("关掉就只留一个手柄图标，电量仍可在菜单里和设置页看到。"))
             }
 
-            Section("菜单栏") {
-                Toggle("在菜单栏图标右边显示手柄电量", isOn: $store.config.showBatteryInMenuBar)
-                Text("关掉就只留一个手柄图标，电量仍可在菜单里和设置页看到。")
+            Section(L("生效的 app")) {
+                Toggle(L("只在下列 app 里响应通用按键"), isOn: $store.config.restrictToTargets)
+                Text(L("whitelistHint"))
                     .font(.subheadline).foregroundStyle(.secondary)
-            }
 
-            Section("生效的 app") {
                 List {
                     ForEach(store.config.targetApps, id: \.self) { b in
-                        HStack {
-                            Text(b).font(.system(.body, design: .monospaced))
+                        HStack(spacing: 8) {
+                            if let icon = NSWorkspace.shared
+                                .urlForApplication(withBundleIdentifier: b)
+                                .map({ NSWorkspace.shared.icon(forFile: $0.path) }) {
+                                Image(nsImage: icon).resizable().frame(width: 18, height: 18)
+                            }
+                            Text(AppName.of(b))
+                            if AppProfiles.builtin[b] != nil {
+                                Label(L("预置"), systemImage: "checkmark.seal.fill")
+                                    .font(.caption).foregroundStyle(.green)
+                                    .labelStyle(.iconOnly)
+                                    .help(L("有内置的快捷键预置"))
+                            }
                             Spacer()
                             Button {
                                 store.config.targetApps.removeAll { $0 == b }
@@ -108,16 +118,46 @@ struct GeneralView: View {
                 }
                 .frame(height: 150)
 
+                let sug = AppProfiles.suggestions(
+                    installed: { NSWorkspace.shared
+                        .urlForApplication(withBundleIdentifier: $0) != nil },
+                    whitelist: store.config.targetApps)
+                if !sug.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(L("这些已装的 app 有现成的快捷键预置，点一下加进来："))
+                            .font(.caption).foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            ForEach(sug, id: \.self) { b in
+                                Button {
+                                    store.config.targetApps.append(b)
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        if let icon = NSWorkspace.shared
+                                            .urlForApplication(withBundleIdentifier: b)
+                                            .map({ NSWorkspace.shared.icon(forFile: $0.path) }) {
+                                            Image(nsImage: icon).resizable()
+                                                .frame(width: 16, height: 16)
+                                        }
+                                        Text(AppName.of(b)).font(.callout)
+                                    }
+                                }
+                            }
+                            Spacer()
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+
                 HStack {
-                    TextField("bundle ID，例如 md.obsidian", text: $newApp)
-                    Button("添加") {
+                    TextField(L("bundle ID，例如 md.obsidian"), text: $newApp)
+                    Button(L("添加")) {
                         let t = newApp.trimmingCharacters(in: .whitespaces)
                         if !t.isEmpty && !store.config.targetApps.contains(t) {
                             store.config.targetApps.append(t)
                         }
                         newApp = ""
                     }
-                    Button("选 app…") { pickApp() }
+                    Button(L("选 app…")) { pickApp() }
                 }
             }
         }
@@ -151,43 +191,39 @@ struct VoiceView: View {
 
     var body: some View {
         Form {
-            Section("触发方式") {
-                Picker("模式", selection: $store.config.pttStyle) {
-                    Text("按住录，松开出字").tag("hold")
-                    Text("按一下开始，再按一下停止").tag("tap")
-                    Text("按住说话（底层 toggle）").tag("toggle")
+            Section(L("触发方式")) {
+                Picker(L("模式"), selection: $store.config.pttStyle) {
+                    Text(L("按住录，松开出字")).tag("hold")
+                    Text(L("按一下开始，再按一下停止")).tag("tap")
+                    Text(L("按住说话（底层 toggle）")).tag("toggle")
                 }
                 .pickerStyle(.radioGroup)
 
-                Text("Typeless、VoiceInk 这类「按住热键」的工具选第一个；"
-                     + "macOS 自带听写是 toggle 语义，选第二个。")
+                Text(L("pttStyleHint"))
                     .font(.subheadline).foregroundStyle(.secondary)
             }
 
-            Section("发给听写工具的热键") {
-                Picker("按键", selection: $store.config.pttKey) {
-                    Text("左 Control").tag("ctrl")
-                    Text("右 Control").tag("rightctrl")
-                    Text("左 Option").tag("alt")
-                    Text("右 Option").tag("rightalt")
+            Section(L("发给听写工具的热键")) {
+                Picker(L("按键"), selection: $store.config.pttKey) {
+                    Text(L("左 Control")).tag("ctrl")
+                    Text(L("右 Control")).tag("rightctrl")
+                    Text(L("左 Option")).tag("alt")
+                    Text(L("右 Option")).tag("rightalt")
                     Text("Fn").tag("fn")
-                    Text("D（配合下面的修饰键）").tag("d")
+                    Text(L("D（配合下面的修饰键）")).tag("d")
                 }
-                Text("填修饰键时会合成 flagsChanged 事件，效果等同于物理按住那颗键。"
-                     + "按下时必须带上自己的 flag，否则监听方看到的是「已松开」——"
-                     + "这是本项目实测踩过的坑。")
+                Text(L("pttKeyHint"))
                     .font(.subheadline).foregroundStyle(.secondary)
             }
 
-            Section("保险丝") {
+            Section(L("保险丝")) {
                 HStack {
-                    Text("按住超过")
+                    Text(L("按住超过"))
                     TextField("", value: $store.config.pttMaxHold, format: .number)
                         .frame(width: 60)
-                    Text("秒强制松开")
+                    Text(L("秒强制松开"))
                 }
-                Text("手柄在你按住时掉线的话，「松开」事件永远不会来，"
-                     + "修饰键会一直卡住，整台机器基本没法用。这是兜底。")
+                Text(L("pttFuseHint"))
                     .font(.subheadline).foregroundStyle(.secondary)
             }
         }
@@ -218,24 +254,24 @@ struct RemoteView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("启用手机遥控", isOn: $store.config.httpEnabled)
+                Toggle(L("启用手机遥控"), isOn: $store.config.httpEnabled)
                     .onChange(of: store.config.httpEnabled) { _ in http.restart() }
                 HStack {
-                    Text("状态")
+                    Text(L("状态"))
                     Spacer()
                     if !store.config.httpEnabled {
-                        Text("已关闭").foregroundStyle(.secondary)
+                        Text(L("已关闭")).foregroundStyle(.secondary)
                     } else if http.running {
-                        Label("监听中 :\(store.config.httpPort)", systemImage: "checkmark.circle.fill")
+                        Label(L("监听中 :%@", String(store.config.httpPort)), systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                     } else {
-                        Label(http.lastError ?? "未监听", systemImage: "exclamationmark.triangle.fill")
+                        Label(http.lastError ?? L("未监听"), systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                     }
                 }
             }
 
-            Section("配对") {
+            Section(L("配对")) {
                 HStack(alignment: .top, spacing: 20) {
                     if let qr = QRCode.image(baseURL, size: 150) {
                         Image(nsImage: qr)
@@ -245,36 +281,36 @@ struct RemoteView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("用手机相机扫码，或在浏览器打开：")
+                        Text(L("用手机相机扫码，或在浏览器打开："))
                             .font(.subheadline).foregroundStyle(.secondary)
                         Text(baseURL)
                             .font(.system(.body, design: .monospaced)).textSelection(.enabled)
                         Divider()
-                        Text("配对码").font(.subheadline).foregroundStyle(.secondary)
+                        Text(L("配对码")).font(.subheadline).foregroundStyle(.secondary)
                         Text(store.config.pairCode)
                             .font(.system(size: 30, weight: .semibold, design: .rounded))
                             .kerning(6).textSelection(.enabled)
-                        Text("只需输一次，之后这台手机会被记住")
+                        Text(L("只需输一次，之后这台手机会被记住"))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
                 }
                 HStack {
-                    Button("复制地址") {
+                    Button(L("复制地址")) {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(baseURL, forType: .string)
                     }
-                    Button("重新生成配对码") {
+                    Button(L("重新生成配对码")) {
                         store.config.pairCode = ConfigStore.randomPairCode()
                         store.config.httpToken = ConfigStore.randomToken()   // 让已配对的手机失效
                         http.restart()
                     }
-                    .help("已配对的手机需要重新配对")
+                    .help(L("已配对的手机需要重新配对"))
                 }
             }
 
-            Section("四角直达键") {
-                Text("对应手机遥控界面圆盘四周的四个 app 图标")
+            Section(L("四角直达键")) {
+                Text(L("对应手机遥控界面圆盘四周的四个 app 图标"))
                     .font(.caption).foregroundStyle(.secondary)
                 Grid(horizontalSpacing: 12, verticalSpacing: 8) {
                     GridRow { cornerPicker(0); cornerPicker(1) }
@@ -284,8 +320,7 @@ struct RemoteView: View {
             }
 
             Section {
-                Text("⚠️ 这个接口等于把键盘权限开到网络上。只在内网或 Tailscale 里用，"
-                     + "绝对不要做端口转发暴露到公网。")
+                Text(L("remoteWarn"))
                     .font(.caption).foregroundStyle(.orange)
             }
         }
@@ -296,7 +331,7 @@ struct RemoteView: View {
     /// 一个角的选择器。只列白名单里的 app —— 切过去之后按键才是有效的。
     private func cornerPicker(_ i: Int) -> some View {
         let cur = cornerApps.indices.contains(i) ? cornerApps[i] : ""
-        return Picker(["左上", "右上", "左下", "右下"][i], selection: Binding(
+        return Picker([L("左上"), L("右上"), L("左下"), L("右下")][i], selection: Binding(
             get: { cur },
             set: { newValue in
                 var c = cornerApps
@@ -304,7 +339,7 @@ struct RemoteView: View {
                 c[i] = newValue
                 store.config.remoteCorners = c
             })) {
-            Text("不设置").tag("")
+            Text(L("不设置")).tag("")
             ForEach(store.config.targetApps, id: \.self) { b in
                 Text(AppName.of(b)).tag(b)
             }
