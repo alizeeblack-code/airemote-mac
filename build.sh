@@ -22,6 +22,60 @@ PYEOF
   node --check /tmp/joycoding-inline.js || { echo "❌ 内联 JS 有语法错误"; exit 1; }
 fi
 
+# 英文是默认语言, 翻译表漏一条就是中文漏给英文用户看。构建时点一遍。
+# 手机页的坑: HTML/JS 都是 Swift 字符串, 里面写 L("…") 不会报错也不会生效。
+# 普通 """ 里必须写成 \(L("…")), 裸 JS 里的 L() 必须有对应的 jsKeys 注入。
+echo "▸ 检查手机页 L()"
+python3 - <<'CHK' || exit 1
+import re, sys
+src = open("Sources/JoyCoding/RemoteUI.swift", encoding="utf-8").read()
+keys = set(re.findall(r'"([^"]+)"',
+           re.search(r'jsKeys = \[(.*?)\]', src, re.S).group(1)))
+
+# JS 区间: 裸 js 常量 + 两个页面里的 <script> 块。其余算 HTML。
+spans = []
+i = src.index('let js = #"""')
+spans.append((i, src.index('"""#', i)))
+for m in re.finditer(r'<script>', src):
+    spans.append((m.start(), src.index('</script>', m.start())))
+inJS = lambda p: any(a <= p <= b for a, b in spans)
+
+bad = []
+for m in re.finditer(r'(.{2})L\("([^"]+)"\)', src):
+    p, pre, k = m.start(1), m.group(1), m.group(2)
+    if inJS(p):
+        if k not in keys:
+            bad.append(f'JS 调了 L("{k}") 但没进 jsKeys, 运行时拿不到译文')
+    elif pre != r'\(' and p > src.index('static func pairPage'):
+        bad.append(f'HTML 里的 L("{k}") 缺 \\( 插值, 会原样输出到页面')
+if bad:
+    print("❌ 手机页文案不会生效:")
+    for b in bad: print("   ", b)
+    sys.exit(1)
+print(f"   ✅ jsKeys {len(keys)} 条, JS 调用与 HTML 插值均正确")
+CHK
+
+echo "▸ 检查翻译覆盖率"
+python3 - <<'PYEOF'
+import re, glob, sys
+# 条目可能一行写好几个, 不能只匹配行首
+known = set(re.findall(r'"((?:[^"\\]|\\.)*)"\s*:\s*"',
+            open('Sources/JoyCoding/Translations.swift', encoding='utf-8').read()))
+miss = []
+for f in glob.glob('Sources/JoyCoding/**/*.swift', recursive=True):
+    if f.endswith('Translations.swift'): continue
+    for line in open(f, encoding='utf-8'):
+        st = line.strip()
+        if st.startswith('//') or 'NSLog' in line: continue
+        for lit in re.findall(r'L\("((?:[^"\\]|\\.)*)"\)', line):
+            if lit not in known: miss.append((f.split('/')[-1], lit))
+if miss:
+    print(f"  ⚠️ {len(miss)} 条 L() 包了但没翻译:")
+    for f, l in miss[:10]: print(f"     {f}: {l}")
+else:
+    print(f"  ✅ 翻译表 {len(known)} 条, L() 调用全部覆盖")
+PYEOF
+
 echo "▸ 组装 .app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
