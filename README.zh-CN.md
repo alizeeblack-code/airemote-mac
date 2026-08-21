@@ -92,6 +92,8 @@ ChatGPT 聚焦输入框是 `⇧⎋`，而 Claude Code 压根没有这个快捷�
 
 **下载**：从 [Releases](../../releases) 拿公证过的安装包，解压拖进「应用程序」，双击打开。
 
+需要 **macOS 13 或更新**。安装包是通用二进制，Apple Silicon 和 Intel Mac 都是原生运行。
+
 **或者自己编译**（需要 Xcode 命令行工具）：
 
 ```bash

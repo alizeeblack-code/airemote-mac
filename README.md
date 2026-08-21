@@ -96,6 +96,9 @@ stays inert there.
 **Download** the notarized build from [Releases](../../releases) — unzip, drag to
 Applications, open.
 
+Requires **macOS 13 or later**. The build is a universal binary, so it runs
+natively on both Apple Silicon and Intel Macs.
+
 **Or build it yourself** (needs Xcode command line tools):
 
 ```bash

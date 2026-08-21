@@ -5,8 +5,11 @@ cd "$(dirname "$0")"
 APP="build/JoyCoding.app"
 VERSION="0.1.0"
 
-echo "▸ 编译"
-swift build -c release
+# 通用二进制: Intel Mac 也能跑。两个切片都是 minos 13.0,
+# 代码里没有任何架构条件编译, 依赖的全是系统框架, 所以只是编两遍再合并。
+echo "▸ 编译 (arm64 + x86_64)"
+swift build -c release --arch arm64 --arch x86_64
+BIN="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/JoyCoding"
 
 # 手机界面的 JS 是内联在 Swift 字符串里的, Swift 编译器看不见它的语法错误。
 # 变量重名这类问题会让【整个脚本不执行】, 页面完全没反应, 而且不报错。
@@ -79,7 +82,15 @@ PYEOF
 echo "▸ 组装 .app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/JoyCoding "$APP/Contents/MacOS/JoyCoding"
+cp "$BIN" "$APP/Contents/MacOS/JoyCoding"
+
+# 两个切片都在, 才算通用包 —— 少一个的话装到 Intel 机上直接打不开
+ARCHS="$(lipo -archs "$APP/Contents/MacOS/JoyCoding")"
+case "$ARCHS" in
+  *arm64*) case "$ARCHS" in *x86_64*) echo "   ✅ 通用二进制: $ARCHS";;
+    *) echo "❌ 缺 x86_64 切片, 实际是: $ARCHS"; exit 1;; esac;;
+  *) echo "❌ 缺 arm64 切片, 实际是: $ARCHS"; exit 1;;
+esac
 [ -f icon/AppIcon.icns ] && cp icon/AppIcon.icns "$APP/Contents/Resources/"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
