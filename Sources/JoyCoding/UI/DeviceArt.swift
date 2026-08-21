@@ -32,7 +32,7 @@ struct DeviceArt {
     var style: BodyStyle = .joycon
     /// 帽子开关在这只手柄上叫什么。Joy-Con 上是摇杆, Pro 手柄上是十字键 ——
     /// 模拟摇杆走 X/Y/Rx/Ry 轴, 我们不读那个。
-    var hatLabel: String = "摇杆"
+    var hatLabel: String = L("摇杆")
 
 
     /// 锚点在父坐标系里的绝对位置, 给连线用
@@ -75,9 +75,9 @@ struct DeviceArt {
             .init(id: 3,  label: "B",  pos: .init(x: 0.50, y: 0.385),
                   size: .init(width: 0.21, height: 0.062), shape: .circle, side: .left),
             // 摇杆在 ABXY 下方
-            .init(id: 12, label: "摇杆按下", pos: .init(x: 0.50, y: 0.560),
+            .init(id: 12, label: L("摇杆按下"), pos: .init(x: 0.50, y: 0.560),
                   size: .init(width: 0.48, height: 0.140), shape: .circle, side: .right),
-            .init(id: StickAnchor.id, label: "摇杆方向", pos: .init(x: 0.50, y: 0.560),
+            .init(id: StickAnchor.id, label: L("摇杆方向"), pos: .init(x: 0.50, y: 0.560),
                   size: .init(width: 0.48, height: 0.140), shape: .circle, side: .left),
             .init(id: 13, label: "⌂",  pos: .init(x: 0.50, y: 0.760),
                   size: .init(width: 0.14, height: 0.040), shape: .circle, side: .right),
@@ -98,9 +98,9 @@ struct DeviceArt {
                   size: .init(width: 0.72, height: 0.028), shape: .capsuleH, side: .left),
             .init(id: 9,  label: "−",  pos: .init(x: 0.70, y: 0.115),
                   size: .init(width: 0.13, height: 0.038), shape: .circle, side: .right),
-            .init(id: 11, label: "摇杆按下", pos: .init(x: 0.50, y: 0.235),
+            .init(id: 11, label: L("摇杆按下"), pos: .init(x: 0.50, y: 0.235),
                   size: .init(width: 0.48, height: 0.140), shape: .circle, side: .right),
-            .init(id: StickAnchor.id, label: "摇杆方向", pos: .init(x: 0.50, y: 0.235),
+            .init(id: StickAnchor.id, label: L("摇杆方向"), pos: .init(x: 0.50, y: 0.235),
                   size: .init(width: 0.48, height: 0.140), shape: .circle, side: .left),
             .init(id: 2,  label: "↑", pos: .init(x: 0.50, y: 0.430),
                   size: .init(width: 0.19, height: 0.056), shape: .circle, side: .right),
@@ -133,9 +133,9 @@ struct DeviceArt {
             .init(id: 6,  label: "R",  pos: .init(x: 0.795, y: 0.072),
                   size: .init(width: 0.19, height: 0.042), shape: .capsuleH, side: .right),
 
-            .init(id: 11, label: "左摇杆按下", pos: .init(x: 0.245, y: 0.300),
+            .init(id: 11, label: L("左摇杆按下"), pos: .init(x: 0.245, y: 0.300),
                   size: .init(width: 0.155, height: 0.225), shape: .circle, side: .left),
-            .init(id: StickAnchor.id, label: "十字键 / 左摇杆", pos: .init(x: 0.335, y: 0.560),
+            .init(id: StickAnchor.id, label: L("十字键 / 左摇杆"), pos: .init(x: 0.335, y: 0.560),
                   size: .init(width: 0.13, height: 0.19), shape: .circle, side: .left),
 
             .init(id: 2,  label: "X", pos: .init(x: 0.775, y: 0.235),
@@ -147,9 +147,9 @@ struct DeviceArt {
             .init(id: 4,  label: "Y", pos: .init(x: 0.692, y: 0.305),
                   size: .init(width: 0.072, height: 0.105), shape: .circle, side: .left),
 
-            .init(id: 12, label: "右摇杆按下", pos: .init(x: 0.648, y: 0.560),
+            .init(id: 12, label: L("右摇杆按下"), pos: .init(x: 0.648, y: 0.560),
                   size: .init(width: 0.155, height: 0.225), shape: .circle, side: .right),
-            .init(id: StickChannel.right.anchorID, label: "右摇杆方向",
+            .init(id: StickChannel.right.anchorID, label: L("右摇杆方向"),
                   pos: .init(x: 0.648, y: 0.560),
                   size: .init(width: 0.155, height: 0.225), shape: .circle, side: .right),
 
@@ -162,7 +162,7 @@ struct DeviceArt {
             .init(id: 13, label: "⌂", pos: .init(x: 0.582, y: 0.420),
                   size: .init(width: 0.048, height: 0.070), shape: .circle, side: .right),
         ],
-        aspect: 1.45, railSide: nil, style: .proController, hatLabel: "十字键")
+        aspect: 1.45, railSide: nil, style: .proController, hatLabel: L("十字键"))
 
     /// PlayStation 手柄 (DualShock 4 / DualSense)。
     ///
@@ -184,7 +184,7 @@ struct DeviceArt {
                   size: .init(width: 0.18, height: 0.042), shape: .capsuleH, side: .right),
 
             // 十字键在左上 (Pro 手柄这里是左摇杆)
-            .init(id: StickChannel.hat.anchorID, label: "十字键", pos: .init(x: 0.230, y: 0.290),
+            .init(id: StickChannel.hat.anchorID, label: L("十字键"), pos: .init(x: 0.230, y: 0.290),
                   size: .init(width: 0.13, height: 0.19), shape: .circle, side: .left),
 
             .init(id: 4, label: "△", pos: .init(x: 0.778, y: 0.222),
@@ -200,15 +200,15 @@ struct DeviceArt {
                   size: .init(width: 0.038, height: 0.075), shape: .capsuleV, side: .left),
             .init(id: 10, label: "Options", pos: .init(x: 0.648, y: 0.150),
                   size: .init(width: 0.038, height: 0.075), shape: .capsuleV, side: .right),
-            .init(id: 14, label: "触摸板", pos: .init(x: 0.500, y: 0.245),
+            .init(id: 14, label: L("触摸板"), pos: .init(x: 0.500, y: 0.245),
                   size: .init(width: 0.235, height: 0.175), shape: .capsuleH, side: .right),
 
             // 两只摇杆并排在下方中间 —— PS 的对称布局
-            .init(id: 11, label: "左摇杆按下", pos: .init(x: 0.352, y: 0.560),
+            .init(id: 11, label: L("左摇杆按下"), pos: .init(x: 0.352, y: 0.560),
                   size: .init(width: 0.145, height: 0.210), shape: .circle, side: .left),
-            .init(id: 12, label: "右摇杆按下", pos: .init(x: 0.648, y: 0.560),
+            .init(id: 12, label: L("右摇杆按下"), pos: .init(x: 0.648, y: 0.560),
                   size: .init(width: 0.145, height: 0.210), shape: .circle, side: .right),
-            .init(id: StickChannel.right.anchorID, label: "右摇杆方向",
+            .init(id: StickChannel.right.anchorID, label: L("右摇杆方向"),
                   pos: .init(x: 0.648, y: 0.560),
                   size: .init(width: 0.145, height: 0.210), shape: .circle, side: .right),
 
@@ -216,12 +216,12 @@ struct DeviceArt {
                   size: .init(width: 0.048, height: 0.070), shape: .circle, side: .left),
         ]
         if mute {
-            a.append(.init(id: 15, label: "静音", pos: .init(x: 0.500, y: 0.775),
+            a.append(.init(id: 15, label: L("静音"), pos: .init(x: 0.500, y: 0.775),
                            size: .init(width: 0.055, height: 0.048),
                            shape: .capsuleH, side: .right))
         }
         return DeviceArt(anchors: a, aspect: 1.52, railSide: nil,
-                         style: .playstation, hatLabel: "十字键")
+                         style: .playstation, hatLabel: L("十字键"))
     }
 }
 

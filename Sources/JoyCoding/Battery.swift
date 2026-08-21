@@ -15,7 +15,7 @@ final class JoyConBattery: ObservableObject {
 
     @Published private(set) var levels: [String: Int] = [:]      // 0...4 粗粒度
     @Published private(set) var charging: [String: Bool] = [:]
-    @Published private(set) var diag = "未开始"
+    @Published private(set) var diag = L("未开始")
     /// 排查用: 每只手柄各自的原始读数
     @Published private(set) var raw: [String: String] = [:]
 
@@ -98,7 +98,7 @@ final class JoyConBattery: ObservableObject {
         let r = IOHIDDeviceSetReport(device, kIOHIDReportTypeOutput, 0x01, &data, data.count)
         if r != kIOReturnSuccess {
             DispatchQueue.main.async {
-                self.diag = String(format: "SetReport 失败 0x%08X", r)
+                self.diag = String(format: L("SetReport 失败 0x%%08X"), r)
             }
         }
     }
@@ -121,7 +121,7 @@ final class JoyConBattery: ObservableObject {
                 guard let sender, let k = self.idByPointer[sender] else { return }
                 self.levels[k] = JoyConBattery.coarseToPercent((nib & 0x0E) / 2)
                 self.charging[k] = (nib & 0x01) != 0
-                self.raw[k] = "完整报告"
+                self.raw[k] = L("完整报告")
                 HIDInput.shared.injectRaw(deviceID: k, buttons: btns, dirs: dirs)
             }
             return
@@ -147,8 +147,8 @@ final class JoyConBattery: ObservableObject {
             self.levels[key] = precise >= 0 ? precise
                                             : JoyConBattery.coarseToPercent(coarse)
             self.charging[key] = isCharging
-            self.raw[key] = precise >= 0 ? "精确 \(precise)%" : "粗 \(coarse)/4"
-            self.diag = "\(self.levels.count) 只手柄各自上报"
+            self.raw[key] = precise >= 0 ? L("精确 %@%%", String(precise)) : L("粗 %@/4", String(coarse))
+            self.diag = L("%@ 只手柄各自上报", String(self.levels.count))
         }
     }
 

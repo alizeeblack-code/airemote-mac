@@ -27,7 +27,7 @@ final class HIDInput: ObservableObject {
     /// 拦截式: 只在"学习摇杆方向"时设上, 期间摇杆不触发动作
     var captureHandler: ((RawInput) -> Void)?
     /// 排查用: 最后一次收到的输入, 不管来自哪只手柄
-    @Published private(set) var lastInput = "还没收到任何输入"
+    @Published private(set) var lastInput = L("还没收到任何输入")
     /// 排查用: 按键走到哪一步了
     @Published private(set) var lastDispatch = "—"
     @Published private(set) var inputCount = 0
@@ -111,7 +111,7 @@ final class HIDInput: ObservableObject {
             guard let v = IOHIDDeviceGetProperty(d, kIOHIDVendorIDKey as CFString) as? Int,
                   let p = IOHIDDeviceGetProperty(d, kIOHIDProductIDKey as CFString) as? Int
             else { return nil }
-            let n = IOHIDDeviceGetProperty(d, kIOHIDProductKey as CFString) as? String ?? "手柄"
+            let n = IOHIDDeviceGetProperty(d, kIOHIDProductKey as CFString) as? String ?? L("手柄")
             let dev = ConnectedDevice(vendorID: v, productID: p, name: n)
             JoyConBattery.shared.attach(d, id: dev.id)
             HIDInput.seedDefaults(dev)
@@ -204,14 +204,14 @@ final class HIDInput: ObservableObject {
         // 覆盖优先, 回落基础层
         let app = AppContext.shared.frontBundle
         guard let prof = profile(device) else {
-            if down { lastDispatch = "按键\(n) [\(device)] 找不到配置" }
+            if down { lastDispatch = L("按键%@ [%@] 找不到配置", String(n), device) }
             return
         }
         guard let b = prof.binding(button: n, app: app), !b.isEmpty else {
-            if down { lastDispatch = "按键\(n) [\(device)] 没绑动作" }
+            if down { lastDispatch = L("按键%@ [%@] 没绑动作", String(n), device) }
             return
         }
-        if down { lastDispatch = "按键\(n) [\(device)] -> \(b.tap ?? "?")" }
+        if down { lastDispatch = L("按键 %@ [%@] -> %@", String(n), device, b.tap ?? "?") }
 
         // 语音是按下/松开语义, 不参与单击双击长按
         if b.tap == "ptt" {

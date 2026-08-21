@@ -160,13 +160,13 @@ final class HTTPServer: ObservableObject {
             return txt(RemoteUI.pairPage(), "text/html; charset=utf-8")
         }
         if Date() < pairLockUntil {
-            return txt("{\"ok\":false,\"msg\":\"尝试过多，请稍后再试\"}",
+            return txt("{\"ok\":false,\"msg\":\(L("尝试过多，请稍后再试"))}",
                        "application/json; charset=utf-8")
         }
         guard comps[1] == cfg.pairCode else {
             pairFails += 1
             if pairFails >= 5 { pairLockUntil = Date().addingTimeInterval(60); pairFails = 0 }
-            return txt("{\"ok\":false,\"msg\":\"配对码不对\"}",
+            return txt("{\"ok\":false,\"msg\":\(L("配对码不对"))}",
                        "application/json; charset=utf-8")
         }
         pairFails = 0
@@ -180,7 +180,7 @@ final class HTTPServer: ObservableObject {
     private func stateJSON() -> String {
         let front = AppContext.shared.frontBundle
         let extras = Actions.available(in: front)
-            .filter { $0.onlyIn != nil || $0.group == "Claude Code" || $0.group == "会话" }
+            .filter { $0.onlyIn != nil || $0.group == "Claude Code" || $0.group == L("会话") }
             .filter { $0.id != "ptt" }
             .map { "{\"id\":\"\($0.id)\",\"name\":\"\($0.name)\"}" }
             .joined(separator: ",")
@@ -203,20 +203,20 @@ final class HTTPServer: ObservableObject {
     private func rowFor(_ app: String) -> [(String, String, String)] {
         switch app {
         case BundleID.chrome:
-            return [("navBack", "←", "后退"), ("reload", "⟳", "刷新"),
-                    ("closeTab", "✕", "关标签"), ("newTab", "＋", "新标签")]
+            return [("navBack", "←", L("后退")), ("reload", "⟳", L("刷新")),
+                    ("closeTab", "✕", L("关标签")), ("newTab", "＋", L("新标签"))]
         case BundleID.wechat:
-            return [("delete", "⌫", "退格"), ("clearLine", "⌧", "清空"),
-                    ("wechatNextUnread", "◉", "未读"), ("focusInput", "⌖", "聚焦")]
+            return [("delete", "⌫", L("退格")), ("clearLine", "⌧", L("清空")),
+                    ("wechatNextUnread", "◉", L("未读")), ("focusInput", "⌖", L("聚焦"))]
         case BundleID.ghostty:
-            return [("delete", "⌫", "退格"), ("cancel", "⎋", "打断"),
-                    ("clearLine", "⌧", "清空行"), ("mode", "⇅", "切模式")]
+            return [("delete", "⌫", L("退格")), ("cancel", "⎋", L("打断")),
+                    ("clearLine", "⌧", L("清空行")), ("mode", "⇅", L("切模式"))]
         case BundleID.claude:
-            return [("delete", "⌫", "退格"), ("cancel", "⎋", "打断"),
-                    ("clearLine", "⌧", "清空"), ("diffPane", "◧", "diff")]
+            return [("delete", "⌫", L("退格")), ("cancel", "⎋", L("打断")),
+                    ("clearLine", "⌧", L("清空")), ("diffPane", "◧", "diff")]
         default:
-            return [("delete", "⌫", "退格"), ("cancel", "⎋", "打断"),
-                    ("clearLine", "⌧", "清空"), ("focusInput", "⌖", "聚焦")]
+            return [("delete", "⌫", L("退格")), ("cancel", "⎋", L("打断")),
+                    ("clearLine", "⌧", L("清空")), ("focusInput", "⌖", L("聚焦"))]
         }
     }
 
@@ -244,7 +244,7 @@ final class HTTPServer: ObservableObject {
     /// 手机切换条用的 app 列表: (bundleID, 短名, 对应的切换动作)
     private func cfgApps() -> [(String, String, String)] {
         let short = [BundleID.claude: "Claude", BundleID.ghostty: "Ghostty",
-                     BundleID.wechat: "微信",   BundleID.chrome: "Chrome"]
+                     BundleID.wechat: L("微信"),   BundleID.chrome: "Chrome"]
         let act = [BundleID.claude: "focusClaude", BundleID.ghostty: "focusGhostty",
                    BundleID.wechat: "focusWeChat", BundleID.chrome: "focusChrome"]
         let cfg = ConfigStore.shared.config
@@ -269,18 +269,18 @@ final class HTTPServer: ObservableObject {
         """
         let devs = HIDInput.shared.devices
         if devs.isEmpty {
-            out += "device:        (没有手柄连接)\n"
+            out += L("device:        (没有手柄连接)") + "\n"
         }
         for d in devs {
             let p = cfg.devices.first { $0.vendorID == d.vendorID && $0.productID == d.productID }
             out += "device:        \(d.name)  \(d.id)  "
-            out += p.map { "已配 \($0.buttons.count) 键 / \($0.stickDirs.count) 方向" }
-                    ?? "⚠️ 没有匹配的配置"
+            out += p.map { L("已配 %@ 键 / %@ 方向", String($0.buttons.count), String($0.stickDirs.count)) }
+                    ?? L("⚠️ 没有匹配的配置")
             if let pct = JoyConBattery.shared.levels[d.id] {
-                out += "  电量 \(pct)%" + (JoyConBattery.shared.charging[d.id] == true ? " ⚡" : "")
+                out += L("  电量 %@%%", String(pct)) + (JoyConBattery.shared.charging[d.id] == true ? " ⚡" : "")
                 if let r = JoyConBattery.shared.raw[d.id] { out += "  [\(r)]" }
             } else {
-                out += "  电量 — (" + JoyConBattery.shared.diag + ")"
+                out += L("  电量 — (") + JoyConBattery.shared.diag + ")"
             }
             out += "\n"
         }

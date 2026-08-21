@@ -29,11 +29,11 @@ enum LaunchAtLogin {
 
     static var statusText: String {
         switch SMAppService.mainApp.status {
-        case .enabled:        return "已开启"
-        case .notRegistered:  return "未开启"
-        case .requiresApproval: return "需要在「系统设置 → 通用 → 登录项」里批准"
-        case .notFound:       return "找不到 app —— 需要先装到「应用程序」文件夹"
-        @unknown default:     return "未知"
+        case .enabled:        return L("已开启")
+        case .notRegistered:  return L("未开启")
+        case .requiresApproval: return L("需要在「系统设置 → 通用 → 登录项」里批准")
+        case .notFound:       return L("找不到 app —— 需要先装到「应用程序」文件夹")
+        @unknown default:     return L("未知")
         }
     }
 }

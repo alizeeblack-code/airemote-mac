@@ -39,15 +39,15 @@ struct MappingView: View {
 
     /// 这只手柄的方向通道叫什么: Joy-Con = 摇杆, Pro = 十字键
     private var hatLabel: String {
-        guard let d = device else { return "摇杆" }
+        guard let d = device else { return L("摇杆") }
         return DeviceArt.art(vendor: d.vendorID, product: d.productID).hatLabel
     }
 
     private func stickPrompt(_ ch: StickChannel, _ i: Int) -> String {
-        let dir = ["上", "下", "左", "右"][min(i, 3)]
-        if ch == .right { return "把右摇杆推向【\(dir)】" }
-        return hatLabel == "十字键"
-            ? "按十字键或推左摇杆【\(dir)】" : "把摇杆推向【\(dir)】"
+        let dir = [L("上"), L("下"), L("左"), L("右")][min(i, 3)]
+        if ch == .right { return L("把右摇杆推向【%@】", dir) }
+        return hatLabel == L("十字键")
+            ? L("按十字键或推左摇杆【%@】", dir) : L("把摇杆推向【%@】", dir)
     }
 
     private var device: ConnectedDevice? {
@@ -89,7 +89,7 @@ struct MappingView: View {
         HStack(spacing: 10) {
             Image(systemName: "gamecontroller.fill").foregroundStyle(.secondary)
             if hid.devices.isEmpty {
-                Text("未连接手柄").foregroundStyle(.secondary)
+                Text(L("未连接手柄")).foregroundStyle(.secondary)
             } else {
                 Picker("", selection: Binding(
                     get: { selectedID ?? hid.devices.first?.id ?? "" },
@@ -98,7 +98,7 @@ struct MappingView: View {
                 }
                 .labelsHidden().frame(maxWidth: 300)
                 Circle().fill(.green).frame(width: 7, height: 7)
-                Text("已连接").font(.subheadline).foregroundStyle(.secondary)
+                Text(L("已连接")).font(.subheadline).foregroundStyle(.secondary)
                 if let d = device, let pct = batt.levels[d.id] {
                     Label {
                         Text("\(pct)%").font(.subheadline).monospacedDigit()
@@ -107,7 +107,7 @@ struct MappingView: View {
                               ? "battery.100.bolt" : JoyConBattery.symbol(pct))
                     }
                     .foregroundStyle(pct <= 20 ? Color.orange : Color.secondary)
-                    .help("Joy-Con 电量")
+                    .help(L("Joy-Con 电量"))
                 }
             }
             Spacer()
@@ -116,21 +116,21 @@ struct MappingView: View {
                     Text(stickStep < stickWizard.count
                          ? stickPrompt(learningCh, stickStep) : "")
                         .font(.subheadline).foregroundStyle(Color.accentColor)
-                    Button("取消") { endStick() }.font(.subheadline)
+                    Button(L("取消")) { endStick() }.font(.subheadline)
                 } else {
                     let chs = channels
                     if chs.count <= 1 {
                         Button { beginStick(d, chs.first ?? .hat) } label: {
-                            Label("学习「\(chLabel(chs.first ?? .hat))」",
+                            Label(L("学习「%@」", chLabel(chs.first ?? .hat)),
                                   systemImage: "wand.and.stars").font(.subheadline)
                         }
                     } else {
                         Menu {
                             ForEach(chs, id: \.self) { ch in
-                                Button("学习「\(chLabel(ch))」") { beginStick(d, ch) }
+                                Button(L("学习「%@」", chLabel(ch))) { beginStick(d, ch) }
                             }
                         } label: {
-                            Label("学习方向", systemImage: "wand.and.stars").font(.subheadline)
+                            Label(L("学习方向"), systemImage: "wand.and.stars").font(.subheadline)
                         }
                         .fixedSize()
                     }
@@ -141,10 +141,10 @@ struct MappingView: View {
                     NSWorkspace.shared.open(URL(string:
                       "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
                 } label: {
-                    Label("辅助功能未授权", systemImage: "exclamationmark.triangle.fill")
+                    Label(L("辅助功能未授权"), systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange).font(.subheadline)
                 }
-                .help("勾选后必须重启 JoyCoding 才生效")
+                .help(L("勾选后必须重启 JoyCoding 才生效"))
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
@@ -152,15 +152,15 @@ struct MappingView: View {
 
     private var layerBar: some View {
         HStack(spacing: 6) {
-            layerChip("", "基础")
+            layerChip("", L("基础"))
             ForEach(store.config.targetApps, id: \.self) { app in
                 layerChip(app, AppName.of(app))
             }
             Spacer()
             if !layer.isEmpty {
                 let n = profile?.overrides[layer]?.buttons.count ?? 0
-                Text(n == 0 ? "这一层还没有覆盖，按键都继承基础层"
-                            : "\(n) 个按键在这一层被覆盖")
+                Text(n == 0 ? L("这一层还没有覆盖，按键都继承基础层")
+                            : L("%@ 个按键在这一层被覆盖", String(n)))
                     .font(.subheadline).foregroundStyle(.secondary)
             }
         }
@@ -193,11 +193,11 @@ struct MappingView: View {
             Spacer()
             Image(systemName: "gamecontroller")
                 .font(.system(size: 44)).foregroundStyle(.tertiary)
-            Text(hid.devices.isEmpty ? "没检测到手柄" : "这个手柄还没有外观图")
+            Text(hid.devices.isEmpty ? L("没检测到手柄") : L("这个手柄还没有外观图"))
                 .foregroundStyle(.secondary)
             Text(hid.devices.isEmpty
-                 ? "蓝牙配对后按一下手柄任意键唤醒它"
-                 : "按键仍可正常映射，只是画不出图形")
+                 ? L("蓝牙配对后按一下手柄任意键唤醒它")
+                 : L("按键仍可正常映射，只是画不出图形"))
                 .font(.subheadline).foregroundStyle(.tertiary)
             Spacer()
         }
@@ -276,7 +276,7 @@ struct MappingView: View {
         var h: CGFloat = 66                                   // 标题 + 单击 + 内边距
         if b.double != nil { h += 26 }
         if b.long   != nil { h += 26 }
-        if b.double == nil || b.long == nil { h += 22 }       // "＋双击 ＋长按" 那一行
+        if b.double == nil || b.long == nil { h += 22 }       // L("＋双击") + " " + L("＋长按") 那一行
         return h
     }
 
@@ -363,10 +363,10 @@ struct MappingView: View {
                 if sd != nil {
                     actionMenuItems { setDir(d, ch, dir, $0) }
                 } else {
-                    Text("先点右上角学习「\(chLabel(ch))」")
+                    Text(L("先点右上角学习「%@」", chLabel(ch)))
                 }
             } label: {
-                Text(act.flatMap { Actions.byID[$0]?.name } ?? (sd == nil ? "未学习" : "未设置"))
+                Text(act.flatMap { Actions.byID[$0]?.name } ?? (sd == nil ? L("未学习") : L("未设置")))
                     .font(.subheadline).lineLimit(1)
                     .foregroundStyle(slotColor(learned: sd != nil, hasAction: act != nil))
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -391,14 +391,14 @@ struct MappingView: View {
                 if !layer.isEmpty {
                     if overridden {
                         Button { clearOverride(d, a.id) } label: {
-                            Text("覆盖").font(.system(size: 10, weight: .bold))
+                            Text(L("覆盖")).font(.system(size: 10, weight: .bold))
                                 .padding(.horizontal, 6).padding(.vertical, 1.5)
                                 .background(Capsule().fill(Color.accentColor))
                                 .foregroundStyle(.white)
                         }
-                        .buttonStyle(.plain).help("点一下恢复继承基础层")
+                        .buttonStyle(.plain).help(L("点一下恢复继承基础层"))
                     } else {
-                        Text("↳ 继承").font(.caption).foregroundStyle(.tertiary)
+                        Text(L("↳ 继承")).font(.caption).foregroundStyle(.tertiary)
                     }
                 }
             }
@@ -406,13 +406,13 @@ struct MappingView: View {
             // 单击是主动作, 单独一行且字号大
             gestureRow(d, a.id, nil, \.tap, primary: true)
 
-            if b.double != nil { gestureRow(d, a.id, "双击", \.double, primary: false) }
-            if b.long   != nil { gestureRow(d, a.id, "长按", \.long,   primary: false) }
+            if b.double != nil { gestureRow(d, a.id, L("双击"), \.double, primary: false) }
+            if b.long   != nil { gestureRow(d, a.id, L("长按"), \.long,   primary: false) }
 
             if b.double == nil || b.long == nil {
                 HStack(spacing: 8) {
-                    if b.double == nil { addChip(d, a.id, "双击", \.double) }
-                    if b.long   == nil { addChip(d, a.id, "长按", \.long) }
+                    if b.double == nil { addChip(d, a.id, L("双击"), \.double) }
+                    if b.long   == nil { addChip(d, a.id, L("长按"), \.long) }
                     Spacer()
                 }
             }
@@ -444,7 +444,7 @@ struct MappingView: View {
             Menu {
                 actionMenuItems { set(d, n, path, $0) }
             } label: {
-                Text(current.flatMap { Actions.byID[$0]?.name } ?? "未设置")
+                Text(current.flatMap { Actions.byID[$0]?.name } ?? L("未设置"))
                     .font(primary ? .body : .subheadline)
                     .fontWeight(primary ? .medium : .regular)
                     .foregroundStyle(current == nil ? Color.secondary : Color.primary)
@@ -480,7 +480,7 @@ struct MappingView: View {
             Menu {
                 actionMenuItems { set(d, n, path, $0) }
             } label: {
-                Text(current.flatMap { Actions.byID[$0]?.name } ?? "未设置")
+                Text(current.flatMap { Actions.byID[$0]?.name } ?? L("未设置"))
                     .font(.subheadline)
                     .foregroundStyle(current == nil ? .tertiary : .primary)
                     .lineLimit(1)
@@ -588,7 +588,7 @@ struct MappingView: View {
     @ViewBuilder
     private func actionMenuItems(_ pick: @escaping (String?) -> Void) -> some View {
         let split = groupSplit
-        Button("未设置") { pick(nil) }
+        Button(L("未设置")) { pick(nil) }
         ForEach(split.primary, id: \.self) { g in
             Menu(g) {
                 ForEach(Actions.all.filter { $0.group == g }) { act in
@@ -598,7 +598,7 @@ struct MappingView: View {
             }
         }
         if !split.other.isEmpty {
-            Menu("其它 app 专属（本层无效）") {
+            Menu(L("其它 app 专属（本层无效）")) {
                 ForEach(split.other, id: \.self) { g in
                     Menu(g) {
                         ForEach(Actions.all.filter { $0.group == g }) { act in
@@ -619,7 +619,7 @@ struct MappingView: View {
 
     private func actionLabel(_ a: ActionDef) -> String {
         guard let only = a.onlyIn, !available(a) else { return a.name }
-        return "\(a.name)（仅 \(AppName.of(only))）"
+        return L("%@（仅 %@）", a.name, AppName.of(only))
     }
 
     private func clearOverride(_ d: ConnectedDevice, _ n: Int) {

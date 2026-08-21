@@ -11,7 +11,7 @@ struct JoyCodingApp: App {
     var body: some Scene {
         MenuBarExtra {
             if hid.devices.isEmpty {
-                Button("没有手柄 — 按一下手柄任意键唤醒") {
+                Button(L("没有手柄 — 按一下手柄任意键唤醒")) {
                     SettingsWindow.shared.show(tab: .mapping)
                 }
             } else {
@@ -25,23 +25,23 @@ struct JoyCodingApp: App {
             }
             Divider()
             if KeySynth.hasAccessibility {
-                Button("辅助功能 ✓") { SettingsWindow.shared.show(tab: .general) }
+                Button(L("辅助功能 ✓")) { SettingsWindow.shared.show(tab: .general) }
             } else {
                 // 直接开系统设置那一页 —— 用户要的是去授权, 不是看我们的界面
-                Button("⚠️ 辅助功能未授权 — 去授权") {
+                Button(L("⚠️ 辅助功能未授权 — 去授权")) {
                     NSWorkspace.shared.open(URL(string:
                       "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
                 }
             }
             if ConfigStore.shared.config.httpEnabled {
-                Button(http.running ? "遥控端口 \(ConfigStore.shared.config.httpPort) ✓"
-                                    : "⚠️ 遥控端口未监听") {
+                Button(http.running ? L("遥控端口 %@ ✓", String(ConfigStore.shared.config.httpPort))
+                                    : L("⚠️ 遥控端口未监听")) {
                     SettingsWindow.shared.show(tab: .remote)
                 }
             }
             Divider()
-            Button("设置…") { SettingsWindow.shared.show() }.keyboardShortcut(",")
-            Button("退出 JoyCoding") { NSApp.terminate(nil) }.keyboardShortcut("q")
+            Button(L("设置…")) { SettingsWindow.shared.show() }.keyboardShortcut(",")
+            Button(L("退出 JoyCoding")) { NSApp.terminate(nil) }.keyboardShortcut("q")
         } label: {
             MenuBarLabel()
         }
@@ -68,7 +68,7 @@ final class SettingsWindow {
             contentRect: NSRect(x: 0, y: 0, width: 1240, height: 820),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false)
-        w.title = "JoyCoding 设置"
+        w.title = L("JoyCoding 设置")
         w.contentView = NSHostingView(rootView: SettingsView())
         w.contentMinSize = NSSize(width: 1060, height: 700)
         w.center()
