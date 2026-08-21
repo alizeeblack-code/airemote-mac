@@ -62,11 +62,13 @@ enum NetAddresses {
     }
 
     /// 返回 nil 表示这个地址不该出现在候选里。
-    private static func classify(interface n: String, ip: String) -> NetAddress.Kind? {
+    /// internal 而非 private: 构建时会用合成用例直接测它
+    static func classify(interface n: String, ip: String) -> NetAddress.Kind? {
         // 系统自建的虚拟接口: AirDrop / 热点 / iPhone 镜像, 手机都连不上
         if n.hasPrefix("awdl") || n.hasPrefix("llw")
             || n.hasPrefix("ap") || n.hasPrefix("anpi") { return nil }
 
+        if ip.hasPrefix("127.") { return nil }        // 环回; all() 靠 flags 也拦, 这里独立成立
         if ip.hasPrefix("169.254.") { return nil }      // 没拿到 DHCP 时的自分配地址
         if ip.hasPrefix("198.18.") || ip.hasPrefix("198.19.") { return nil }  // 代理软件 TUN 常占的保留段
 

@@ -3,7 +3,7 @@ set -e
 cd "$(dirname "$0")"
 
 APP="build/JoyCoding.app"
-VERSION="0.1.0"
+VERSION="0.1.1"
 
 # 通用二进制: Intel Mac 也能跑。两个切片都是 minos 13.0,
 # 代码里没有任何架构条件编译, 依赖的全是系统框架, 所以只是编两遍再合并。
@@ -28,6 +28,13 @@ fi
 # 英文是默认语言, 翻译表漏一条就是中文漏给英文用户看。构建时点一遍。
 # 手机页的坑: HTML/JS 都是 Swift 字符串, 里面写 L("…") 不会报错也不会生效。
 # 普通 """ 里必须写成 \(L("…")), 裸 JS 里的 L() 必须有对应的 jsKeys 注入。
+# 地址检测出过一次真实故障: 写死只查 en0, 别人机器走 en1 就退化成 127.0.0.1。
+# 这组用例直接跑真实的 classify(), 不是复刻一份逻辑。
+echo "▸ 检查地址分类"
+swiftc -O Sources/JoyCoding/NetAddress.swift tools/nettest/main.swift \
+  -o /tmp/joycoding-nettest 2>/dev/null
+/tmp/joycoding-nettest || { echo "❌ 地址分类有回归"; exit 1; }
+
 echo "▸ 检查手机页 L()"
 python3 - <<'CHK' || exit 1
 import re, sys
