@@ -131,6 +131,10 @@ enum KeySynth {
         MousePad.suspended = true
         defer { MousePad.suspended = false }
         let origin = CGEvent(source: nil)?.location
+        // 先把光标真正挪过去再点。只在事件里填目标坐标的话, 点是点在那里了,
+        // 但可见的指针还停在原处; 有些框架(尤其 web 视图)靠指针位置判定
+        // hover/命中, 不先移动过去可能点不中目标元素。
+        CGWarpMouseCursorPosition(p)
         let src = CGEventSource(stateID: .hidSystemState)
         CGEvent(mouseEventSource: src, mouseType: .leftMouseDown,
                 mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
@@ -153,15 +157,21 @@ enum KeySynth {
                   as? [[String: Any]]
         else { return nil }
 
+        // 取【面积最大】的那个窗口, 不是列表里的第一个。
+        // CGWindowList 的顺序没有保证; Electron 应用(Codex 的 Pet / Voice Controls
+        // 之类浮层)在同一进程里还有别的窗口, 撞上就会把"聚焦输入框"点到浮层上,
+        // 多显示器时甚至点到另一块屏。主窗口就是这个 app 最大的可见窗口。
+        var best: CGRect?
         for w in list {
             guard let owner = w[kCGWindowOwnerPID as String] as? pid_t, owner == pid,
                   let b = w[kCGWindowBounds as String] as? [String: CGFloat],
                   let x = b["X"], let y = b["Y"], let width = b["Width"], let height = b["Height"],
                   width > 100, height > 100     // 跳过工具条之类的小窗
             else { continue }
-            return CGRect(x: x, y: y, width: width, height: height)
+            let r = CGRect(x: x, y: y, width: width, height: height)
+            if best == nil || r.width * r.height > best!.width * best!.height { best = r }
         }
-        return nil
+        return best
     }
 
     // MARK: - 权限
