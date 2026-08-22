@@ -35,6 +35,10 @@ swiftc -O Sources/JoyCoding/NetAddress.swift tools/nettest/main.swift \
   -o /tmp/joycoding-nettest 2>/dev/null
 /tmp/joycoding-nettest || { echo "❌ 地址分类有回归"; exit 1; }
 
+echo "▸ 测 DualSense 报告解析"
+swiftc -O Sources/JoyCoding/DualSenseRaw.swift tools/dualsense-test/main.swift \
+       -o /tmp/jc-ds-test 2>/dev/null && /tmp/jc-ds-test || { echo "❌ DualSense 解析用例失败"; exit 1; }
+
 echo "▸ 检查手机页 L()"
 python3 - <<'CHK' || exit 1
 import re, sys

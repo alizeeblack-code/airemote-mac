@@ -28,15 +28,20 @@ final class JoyConBattery: ObservableObject {
     private var timer: Timer?
     private var reportKinds: Set<Int> = []
 
-    private let bufSize = 64
+    private let bufSize = 128         // DualSense 蓝牙完整报告是 78 字节
     private let outLen  = 49          // ← 必须是 49
     private let nintendo = 0x057E
+    /// 每只手柄是哪家的 —— 任天堂要发私有子命令查电量, 索尼不能发
+    private var vendors: [String: Int] = [:]
 
     private init() {}
 
     func attach(_ device: IOHIDDevice, id: String) {
-        guard (IOHIDDeviceGetProperty(device, kIOHIDVendorIDKey as CFString) as? Int) == nintendo,
-              buffers[id] == nil else { return }
+        let vendor = IOHIDDeviceGetProperty(device, kIOHIDVendorIDKey as CFString) as? Int ?? 0
+        let product = IOHIDDeviceGetProperty(device, kIOHIDProductIDKey as CFString) as? Int ?? 0
+        let isSony = DualSenseRaw.isSupported(vendor: vendor, product: product)
+        guard vendor == nintendo || isSony, buffers[id] == nil else { return }
+        vendors[id] = vendor
 
         let buf = UnsafeMutablePointer<UInt8>.allocate(capacity: bufSize)
         buf.initialize(repeating: 0, count: bufSize)
@@ -55,18 +60,43 @@ final class JoyConBattery: ObservableObject {
                 .handleReport(sender: sender, id: Int(rid), bytes: rep, length: len)
         }, ctx)
 
+        if isSony {
+            // 蓝牙时手柄默认停在 10 字节精简模式, 里面没有电量。发几次请求让它
+            // 切到完整报告 —— 刚连上时可能还没准备好, 所以重试。
+            for i in 0..<3 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25 + Double(i) * 0.6) {
+                    self.enableFullReport(id)
+                }
+            }
+            return
+        }
+
         for i in 0..<3 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4 + Double(i) * 0.5) {
                 self.query(id)
             }
         }
         timer?.invalidate()
+        // 只给任天堂手柄发 —— 那是它家的私有子命令, 发给索尼没有意义
         timer = Timer.scheduledTimer(withTimeInterval: 120, repeats: true) { [weak self] _ in
-            self?.buffers.keys.forEach { self?.query($0) }
+            guard let self else { return }
+            self.vendors.filter { $0.value == self.nintendo }.keys.forEach { self.query($0) }
+        }
+    }
+
+    /// 让 DualSense 切到 78 字节完整报告
+    private func enableFullReport(_ id: String) {
+        guard let device = devices[id] else { return }
+        var d = DualSenseRaw.fullReportRequest()
+        let r = IOHIDDeviceSetReport(device, kIOHIDReportTypeOutput,
+                                     CFIndex(0x31), &d, d.count)
+        if r != kIOReturnSuccess {
+            NSLog("[JoyCoding] DualSense 启用完整报告失败 0x%08X", r)
         }
     }
 
     func detach(id: String) {
+        vendors.removeValue(forKey: id)
         buffers[id]?.deallocate()
         buffers.removeValue(forKey: id)
         if let d = devices[id] {
@@ -105,6 +135,42 @@ final class JoyConBattery: ObservableObject {
 
     private func handleReport(sender: UnsafeMutableRawPointer?, id: Int,
                               bytes: UnsafeMutablePointer<UInt8>, length: CFIndex) {
+        guard let sender, let key = idByPointer[sender] else { return }
+
+        // ── DualSense ────────────────────────────────────────────
+        // 启用完整报告后 macOS 就不再派发标准 HID 元素了, 所以按键/十字键/
+        // 摇杆全都得在这里解析, 否则手柄会彻底没有输入。
+        if vendors[key] == DualSenseRaw.vendor {
+            guard let f = DualSenseRaw.parse(id: id, bytes: bytes, length: Int(length)) else {
+                return      // 还停在精简报告上, 等 enableFullReport 生效
+            }
+            DispatchQueue.main.async {
+                if let pct = f.percent {
+                    self.levels[key] = pct
+                    self.charging[key] = f.charging
+                } else {
+                    self.levels.removeValue(forKey: key)
+                    self.charging.removeValue(forKey: key)
+                }
+                self.raw[key] = String(format: "DualSense 0x%02X", f.statusRaw)
+                self.diag = L("%@ 只手柄各自上报", String(self.levels.count))
+
+                // 摇杆两条路都给: dirs 供"按方向绑动作", vecs 供鼠标模式
+                let dirs: [StickChannel: Int?] = [
+                    .hat:   f.hat,
+                    .left:  DualSenseRaw.dir(f.left),
+                    .right: DualSenseRaw.dir(f.right),
+                ]
+                let vecs: [StickChannel: (Double, Double)?] = [
+                    .left:  (f.left.x, f.left.y),
+                    .right: (f.right.x, f.right.y),
+                ]
+                HIDInput.shared.injectRaw(deviceID: key, buttons: f.buttons,
+                                          dirs: dirs, vecs: vecs)
+            }
+            return
+        }
+
         // 完整报告 0x30: 按键走这里解析, 顺带取电量。
         // Pro 手柄被系统切进这个模式后, 标准 HID 元素就不再上报了。
         if id == 0x30, length >= 12 {
@@ -122,7 +188,7 @@ final class JoyConBattery: ObservableObject {
             ]
             let nib = Int(b[2]) >> 4
             DispatchQueue.main.async {
-                guard let sender, let k = self.idByPointer[sender] else { return }
+                let k = key
                 self.levels[k] = JoyConBattery.coarseToPercent((nib & 0x0E) / 2)
                 self.charging[k] = (nib & 0x01) != 0
                 self.raw[k] = L("完整报告")
@@ -148,7 +214,6 @@ final class JoyConBattery: ObservableObject {
         }
 
         DispatchQueue.main.async {
-            guard let sender, let key = self.idByPointer[sender] else { return }
             self.levels[key] = precise >= 0 ? precise
                                             : JoyConBattery.coarseToPercent(coarse)
             self.charging[key] = isCharging

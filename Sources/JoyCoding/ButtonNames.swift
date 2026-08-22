@@ -8,7 +8,8 @@ enum ButtonNames {
         9: L("减号 −"), 10: L("加号 +"), 11: L("左摇杆按下"), 12: L("摇杆按下"),
         13: "Home", 14: L("截图键"), 15: "R", 16: "ZR",
     ]
-    /// PlayStation 标准位序。未实测, 以界面里按出来的编号为准。
+    /// PlayStation 标准位序。已由 DualSense 完整报告的位映射验证
+    /// (0x10=□ 0x20=✕ 0x40=○ 0x80=△, 见 DualSenseRaw)。
     static let sony: [Int: String] = [
         1: "□", 2: "✕", 3: "○", 4: "△", 5: "L1", 6: "R1", 7: "L2", 8: "R2",
         9: "Create", 10: "Options", 11: "L3", 12: "R3", 13: "PS", 14: L("触摸板"),
