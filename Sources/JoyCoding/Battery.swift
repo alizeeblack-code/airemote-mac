@@ -116,7 +116,10 @@ final class JoyConBattery: ObservableObject {
                 .left:  NintendoRaw.leftStick(b),     // 左摇杆, 各绑各的
                 .right: NintendoRaw.rightStick(b),
             ]
-            let rvec = NintendoRaw.rightStickVec(b)
+            let vecs: [StickChannel: (Double, Double)?] = [
+                .left:  NintendoRaw.leftStickVec(b),
+                .right: NintendoRaw.rightStickVec(b),
+            ]
             let nib = Int(b[2]) >> 4
             DispatchQueue.main.async {
                 guard let sender, let k = self.idByPointer[sender] else { return }
@@ -124,7 +127,7 @@ final class JoyConBattery: ObservableObject {
                 self.charging[k] = (nib & 0x01) != 0
                 self.raw[k] = L("完整报告")
                 HIDInput.shared.injectRaw(deviceID: k, buttons: btns, dirs: dirs,
-                                          rightVec: rvec)
+                                          vecs: vecs)
             }
             return
         }

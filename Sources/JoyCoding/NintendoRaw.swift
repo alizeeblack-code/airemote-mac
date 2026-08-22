@@ -42,6 +42,13 @@ enum NintendoRaw {
         (Double(x - 0x800) / Double(0x800), Double(y - 0x800) / Double(0x800))
     }
 
+    /// 左摇杆的模拟量
+    static func leftStickVec(_ b: UnsafeBufferPointer<UInt8>) -> (Double, Double)? {
+        guard b.count >= 12 else { return nil }
+        return stickVec(Int(b[6]) | ((Int(b[7]) & 0x0F) << 8),
+                        (Int(b[7]) >> 4) | (Int(b[8]) << 4))
+    }
+
     /// 右摇杆的模拟量。给鼠标用 —— 它需要"推了多远", 不是"推向哪个方向"。
     static func rightStickVec(_ b: UnsafeBufferPointer<UInt8>) -> (Double, Double)? {
         guard b.count >= 12 else { return nil }

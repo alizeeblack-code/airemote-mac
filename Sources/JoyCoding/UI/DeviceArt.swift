@@ -404,15 +404,37 @@ struct DeviceBody: View {
     private func stickArrows(_ stick: ButtonAnchor, w: CGFloat, h: CGFloat,
                              on liveKey: String?) -> some View {
         let cx = stick.pos.x * w, cy = stick.pos.y * h
-        let r = stick.size.width * w * 0.5 + w * 0.10
+        // 半径按【摇杆自身】算, 不要加机身宽的固定比例 —— 机身越宽箭头被推得越远,
+        // Pro 手柄上曾经落到 2.3 倍摇杆半径的位置, 三组箭头糊成一片。
+        let rad = stick.size.width * w * 0.5
+        let r = rad * 1.42
         let offsets: [(String, CGFloat, CGFloat)] = [
             ("up", 0, -r), ("down", 0, r), ("left", -r, 0), ("right", r, 0),
         ]
+        // 十字键在 Pro/PS 上没有对应的"按下"按键, 所以它只是个虚拟通道锚点,
+        // 本体一直没人画 —— 四个箭头浮在空处, 看着无所归属。这里补上。
+        let isDpad = StickChannel.from(anchorID: stick.id) == .hat && art.style != .joycon
+        let arm = rad * 0.62, len = rad * 1.75
         return ZStack {
+            if isDpad {
+                Group {
+                    RoundedRectangle(cornerRadius: arm * 0.3)
+                        .fill(Color.black.opacity(0.45)).frame(width: len, height: arm)
+                    RoundedRectangle(cornerRadius: arm * 0.3)
+                        .fill(Color.black.opacity(0.45)).frame(width: arm, height: len)
+                    RoundedRectangle(cornerRadius: arm * 0.26)
+                        .fill(Color.white.opacity(0.20))
+                        .frame(width: len * 0.88, height: arm * 0.76)
+                    RoundedRectangle(cornerRadius: arm * 0.26)
+                        .fill(Color.white.opacity(0.20))
+                        .frame(width: arm * 0.76, height: len * 0.88)
+                }
+                .position(x: cx, y: cy)
+            }
             ForEach(offsets, id: \.0) { key, dx, dy in
                 let on = liveKey == key
                 Image(systemName: StickAnchor.arrow[key]!)
-                    .font(.system(size: max(6, w * 0.11), weight: .bold))
+                    .font(.system(size: max(6, rad * 0.62), weight: .bold))
                     .foregroundStyle(on ? Color.accentColor : Color.white.opacity(0.22))
                     .shadow(color: on ? Color.accentColor.opacity(0.8) : .clear, radius: 4)
                     .position(x: cx + dx, y: cy + dy)

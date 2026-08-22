@@ -34,6 +34,11 @@ enum StickChannel: String, CaseIterable {
         case .right: return L("右摇杆")
         }
     }
+    /// 有没有模拟量(推了多远)。十字键是数字量, 只有八个方向, 做不了
+    /// "推得越远越快"; Joy-Con 走简单 HID 模式上报成帽子开关, 同理。
+    /// 只有这类通道才能当鼠标用。
+    var isAnalog: Bool { self == .left || self == .right }
+
     /// 虚拟锚点 id, 用负数和真实按键编号错开
     var anchorID: Int {
         switch self {

@@ -14,20 +14,28 @@ enum MousePad {
     /// 而且死区一大, 低速段就没了。所以偏移单独学出来减掉。
     private static let deadZone = 0.08
 
-    // MARK: - 中位自动校准
-    private static var samples: [(Double, Double)] = []
-    private static var center = (x: 0.0, y: 0.0)
+    // MARK: - 每根摇杆各自的状态
+    //
+    // 中位偏移是物理量, 每根摇杆各不相同(实测这颗 Pro 的右摇杆是 0.12)。
+    // 状态存一份的话, 换一根摇杆当鼠标时旧中位会残留, 光标先漂一下才自我修正;
+    // 两根同时当鼠标更糟 —— 会持续互相覆盖, 谁也学不准。所以按通道分开存。
+    private struct Cal {
+        var samples: [(Double, Double)] = []
+        var center = (x: 0.0, y: 0.0)
+        var carry = (x: 0.0, y: 0.0)
+    }
+    private static var cal: [String: Cal] = [:]
 
     /// 连续一批读数挤在很小的范围里, 就认为摇杆是松开的, 把这个位置当中位。
     /// 只在靠近原点时才认, 免得开机时正握着摇杆被学歪。
-    private static func updateCenter(_ v: (x: Double, y: Double)) {
-        guard abs(v.x) < 0.35, abs(v.y) < 0.35 else { samples.removeAll(); return }
-        samples.append((v.x, v.y))
-        if samples.count > 30 { samples.removeFirst() }
-        guard samples.count == 30 else { return }
-        let xs = samples.map { $0.0 }, ys = samples.map { $0.1 }
+    private static func updateCenter(_ c: inout Cal, _ v: (x: Double, y: Double)) {
+        guard abs(v.x) < 0.35, abs(v.y) < 0.35 else { c.samples.removeAll(); return }
+        c.samples.append((v.x, v.y))
+        if c.samples.count > 30 { c.samples.removeFirst() }
+        guard c.samples.count == 30 else { return }
+        let xs = c.samples.map { $0.0 }, ys = c.samples.map { $0.1 }
         guard (xs.max()! - xs.min()!) < 0.03, (ys.max()! - ys.min()!) < 0.03 else { return }
-        center = (xs.reduce(0,+) / 30, ys.reduce(0,+) / 30)
+        c.center = (xs.reduce(0,+) / 30, ys.reduce(0,+) / 30)
     }
 
     /// 满推时每帧移动多少点。60Hz 下约 1400 点/秒。
@@ -62,17 +70,17 @@ enum MousePad {
             .post(tap: .cghidEventTap)
     }
 
-    // 慢速推时每帧的位移不足 1 点。直接取整会被抹掉, 所以把余数攒着。
-    private static var carry = (x: 0.0, y: 0.0)
+    /// 传入某根摇杆的模拟量(-1...1)。回中或没绑鼠标时传 nil。
+    /// key 用来区分是哪根摇杆 —— 校准和亚像素余数各算各的。
+    static func apply(_ key: String, _ raw: (x: Double, y: Double)?) {
+        var c = cal[key] ?? Cal()
+        defer { cal[key] = c }
+        guard !suspended, let r = raw else { c.carry = (0, 0); return }
+        updateCenter(&c, r)
 
-    /// 传入右摇杆的模拟量(-1...1)。回中或没绑鼠标时传 nil。
-    static func apply(_ raw: (x: Double, y: Double)?) {
-        guard !suspended, let r = raw else { carry = (0, 0); return }
-        updateCenter(r)
-
-        let v = (x: r.x - center.x, y: r.y - center.y)
+        let v = (x: r.x - c.center.x, y: r.y - c.center.y)
         let mag = (v.x * v.x + v.y * v.y).squareRoot()
-        guard mag > deadZone else { carry = (0, 0); return }
+        guard mag > deadZone else { c.carry = (0, 0); return }
 
         // 死区外重新铺满 0...1, 否则刚过死区就会突然跳一下
         let scaled = min((mag - deadZone) / (1 - deadZone), 1)
@@ -80,11 +88,11 @@ enum MousePad {
         let speed = scaled * scaled * maxStep
 
         // 摇杆 y 轴向上为正, 屏幕坐标向下为正
-        let dx = v.x / mag * speed + carry.x
-        let dy = -v.y / mag * speed + carry.y
-        // 取整后把余数留到下一帧, 否则低速段永远凑不满 1 点就被丢掉
+        // 慢速推时每帧的位移不足 1 点, 取整会被抹掉, 所以把余数攒着
+        let dx = v.x / mag * speed + c.carry.x
+        let dy = -v.y / mag * speed + c.carry.y
         let stepX = dx.rounded(.towardZero), stepY = dy.rounded(.towardZero)
-        carry = (dx - stepX, dy - stepY)
+        c.carry = (dx - stepX, dy - stepY)
         guard stepX != 0 || stepY != 0 else { return }
 
         guard let cur = CGEvent(source: nil)?.location else { return }
