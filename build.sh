@@ -3,7 +3,7 @@ set -e
 cd "$(dirname "$0")"
 
 APP="build/JoyCoding.app"
-VERSION="0.2.0"
+VERSION="0.3.0"
 
 # 通用二进制: Intel Mac 也能跑。两个切片都是 minos 13.0,
 # 代码里没有任何架构条件编译, 依赖的全是系统框架, 所以只是编两遍再合并。
