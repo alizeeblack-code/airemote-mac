@@ -26,6 +26,12 @@ enum Translations {
     ]
 
     static let en: [String: String] = [
+        // 方向键在各 app 里的说法(手机说明卡用)
+        "上一个标签页": "Previous tab",
+        "下一个标签页": "Next tab",
+        "上一个聊天": "Previous chat",
+        "下一个聊天": "Next chat",
+        "上一个窗口": "Previous window",
 
         // MARK: 动作名与说明
         "确认 / 发送": "Confirm / Send",

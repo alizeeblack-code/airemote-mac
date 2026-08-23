@@ -261,6 +261,9 @@ final class HTTPServer: ObservableObject {
         let apps = cfgApps().map {
             "{\"id\":\"\(esc($0.0))\",\"name\":\"\(esc($0.1))\",\"act\":\"\(esc($0.2))\"}"
         }.joined(separator: ",")
+        let dirs = dirsFor(front).map {
+            "{\"id\":\(jsonStr($0.0)),\"name\":\(jsonStr($0.1))}"
+        }.joined(separator: ",")
         // 前台 app 决定显示哪一边(终端和无关 app 给两边)
         let tools = SessionScan.tools(forFront: front)
         let found = SessionScan.recent(tools: tools)
@@ -275,8 +278,31 @@ final class HTTPServer: ObservableObject {
         return """
         {"app":"\(esc(front))","appName":"\(esc(AppName.of(front)))",\
         "inTarget":\(AppContext.shared.inTarget()),"apps":[\(apps)],\
-        "row":[\(row)],"extras":[\(extras)],"sessions":[\(sessions)]}
+        "row":[\(row)],"extras":[\(extras)],"sessions":[\(sessions)],"dirs":[\(dirs)]}
         """
+    }
+
+    /// 方向键在每个 app 里的说法。◀▶ 在 Claude 里是切会话, 在 Chrome 里是切
+    /// 标签页, 微信里是切聊天, Ghostty 里是切窗口(它的档案走窗口不走标签)。
+    ///
+    /// 手机上的按键说明卡照抄这份。之前那句说明是写死的英文常量, 不管切到哪个
+    /// app 都说 "previous / next session" —— 在 Chrome 上就是错的。
+    ///
+    /// 写成四组完整词条而不是「上一个」+ 单位拼接: 拼接在英文下会撞单复数
+    /// (已有的「会话」译作 Sessions, 拼出来是 "Previous Sessions"), 而且
+    /// 各语言的语序也不一定是「序数词 + 名词」。
+    private func dirsFor(_ app: String) -> [(String, String)] {
+        let prev: String, next: String
+        switch app {
+        case BundleID.chrome:  prev = L("上一个标签页"); next = L("下一个标签页")
+        case BundleID.wechat:  prev = L("上一个聊天");   next = L("下一个聊天")
+        case BundleID.ghostty: prev = L("上一个窗口");   next = L("下一个窗口")
+        default:               prev = L("上一个会话");   next = L("下一个会话")
+        }
+        return [("scrollUp",    L("向上翻页")),
+                ("scrollDown",  L("向下翻页")),
+                ("sessionPrev", prev),
+                ("sessionNext", next)]
     }
 
     /// 手机功能行: 每个 app 给一组它自己最常用的四个。
