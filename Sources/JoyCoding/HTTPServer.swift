@@ -250,8 +250,14 @@ final class HTTPServer: ObservableObject {
         let apps = cfgApps().map {
             "{\"id\":\"\(esc($0.0))\",\"name\":\"\(esc($0.1))\",\"act\":\"\(esc($0.2))\"}"
         }.joined(separator: ",")
-        let sessions = SessionScan.recent().map {
-            "{\"name\":\"\(esc($0.name))\",\"ageSec\":\($0.ageSec),\"busy\":\($0.busy)}"
+        // 前台 app 决定显示哪一边(终端和无关 app 给两边)
+        let tools = SessionScan.tools(forFront: front)
+        let found = SessionScan.recent(tools: tools)
+        // 只有一边时不必标工具名 —— 前台已经说明了; 混着才标
+        let mixed = Set(found.map(\.tool)).count > 1
+        let sessions = found.map {
+            "{\"name\":\(jsonStr($0.name)),\"ageSec\":\($0.ageSec),"
+            + "\"busy\":\($0.busy),\"tool\":\(jsonStr(mixed ? $0.tool.label : ""))}"
         }.joined(separator: ",")
         return """
         {"app":"\(esc(front))","appName":"\(esc(AppName.of(front)))",\
