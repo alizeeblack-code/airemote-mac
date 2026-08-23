@@ -171,6 +171,17 @@ final class HTTPServer: ObservableObject {
         let action = comps.first ?? ""
         if action.isEmpty { return txt(RemoteUI.page(), "text/html; charset=utf-8") }
         if action == "state" { return txt(stateJSON(), "application/json; charset=utf-8") }
+        // 当前前台 app 的完整可用动作表。手机端的功能行编辑器用 ——
+        // /state 里的 extras 是给「⋯」面板过滤过的子集, 不够当选择器的数据源。
+        if action == "actions" {
+            let front = AppContext.shared.frontBundle
+            let list = Actions.available(in: front)
+                .filter { $0.id != "ptt" }
+                .map { "{\"id\":\"\($0.id)\",\"name\":\(jsonStr($0.name))}" }
+                .joined(separator: ",")
+            return txt("{\"app\":\(jsonStr(front)),\"actions\":[\(list)]}",
+                       "application/json; charset=utf-8")
+        }
         if action == "raw"   { return txt(indexPage()) }
         if action == "icon", comps.count > 1 {
             guard let png = HTTPServer.iconPNG(comps[1]) else {
