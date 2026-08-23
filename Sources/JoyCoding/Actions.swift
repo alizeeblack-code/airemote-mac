@@ -232,6 +232,10 @@ enum Actions {
     private static var cacheAll: [ActionDef] = []
     private static var cacheByID: [String: ActionDef] = [:]
 
+    /// HID 输入线程和 HTTP 的并发队列都会读这里, 手机每 1.5s 一次 /state ——
+    /// 不锁的话重建和读会撞在一起, 字典写坏直接崩。
+    private static let cacheLock = NSLock()
+
     private static func rebuildIfNeeded() {
         let key = focusApps().joined(separator: "|")
         guard key != cacheKey || cacheAll.isEmpty else { return }
@@ -240,8 +244,15 @@ enum Actions {
         cacheByID = Dictionary(cacheAll.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
     }
 
-    static var all: [ActionDef] { rebuildIfNeeded(); return cacheAll }
-    static var byID: [String: ActionDef] { rebuildIfNeeded(); return cacheByID }
+    private static func cached<T>(_ get: () -> T) -> T {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        rebuildIfNeeded()
+        return get()
+    }
+
+    static var all: [ActionDef] { cached { cacheAll } }
+    static var byID: [String: ActionDef] { cached { cacheByID } }
 
     static var groups: [String] {
         var seen: [String] = []

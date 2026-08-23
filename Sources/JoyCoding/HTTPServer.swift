@@ -176,15 +176,26 @@ final class HTTPServer: ObservableObject {
         let action = comps.first ?? ""
         if action.isEmpty { return txt(RemoteUI.page(), "text/html; charset=utf-8") }
         if action == "state" { return txt(stateJSON(), "application/json; charset=utf-8") }
-        // 当前前台 app 的完整可用动作表。手机端的功能行编辑器用 ——
+        // 某个 app 的完整可用动作表。手机端的功能行编辑器用 ——
         // /state 里的 extras 是给「⋯」面板过滤过的子集, 不够当选择器的数据源。
+        //
+        // /actions/<bundleID> 指定 app, /actions 不带参数则是当前前台 ——
+        // 功能行是 per-app 的配置, 手机上要能改「不在前台的那个 app」,
+        // 否则想调 Chrome 的按键就得先把 Mac 切到 Chrome。
         if action == "actions" {
-            let front = AppContext.shared.frontBundle
-            let list = Actions.available(in: front)
+            let target = comps.count > 1 && !comps[1].isEmpty
+                ? comps[1] : AppContext.shared.frontBundle
+            let list = Actions.available(in: target)
                 .filter { $0.id != "ptt" }
                 .map { "{\"id\":\"\($0.id)\",\"name\":\(jsonStr($0.name))}" }
                 .joined(separator: ",")
-            return txt("{\"app\":\(jsonStr(front)),\"actions\":[\(list)]}",
+            // 连默认功能行一起给: 编辑非前台 app 时 /state 里没有它的 row,
+            // 手机端就没法显示"恢复默认后会变成什么"。
+            let defRow = rowFor(target).map {
+                "{\"id\":\(jsonStr($0.0)),\"icon\":\(jsonStr($0.1)),\"name\":\(jsonStr($0.2))}"
+            }.joined(separator: ",")
+            return txt("{\"app\":\(jsonStr(target)),\"appName\":\(jsonStr(AppName.of(target))),"
+                       + "\"actions\":[\(list)],\"row\":[\(defRow)]}",
                        "application/json; charset=utf-8")
         }
         if action == "raw"   { return txt(indexPage()) }
@@ -253,11 +264,13 @@ final class HTTPServer: ObservableObject {
         // 前台 app 决定显示哪一边(终端和无关 app 给两边)
         let tools = SessionScan.tools(forFront: front)
         let found = SessionScan.recent(tools: tools)
-        // 只有一边时不必标工具名 —— 前台已经说明了; 混着才标
-        let mixed = Set(found.map(\.tool)).count > 1
+        // tool 恒定输出: 手机端不再拿它当文字标签(改用 appID 的图标了), 只用来
+        // 算配色和无障碍朗读 —— 跟着前台 app 时有时无的话, 同一个会话的颜色
+        // 会在切 app 时跳变。
         let sessions = found.map {
             "{\"name\":\(jsonStr($0.name)),\"ageSec\":\($0.ageSec),"
-            + "\"busy\":\($0.busy),\"tool\":\(jsonStr(mixed ? $0.tool.label : ""))}"
+            + "\"busy\":\($0.busy),\"tool\":\(jsonStr($0.tool.label)),"
+            + "\"appID\":\(jsonStr($0.appID))}"
         }.joined(separator: ",")
         return """
         {"app":"\(esc(front))","appName":"\(esc(AppName.of(front)))",\
@@ -289,9 +302,14 @@ final class HTTPServer: ObservableObject {
     }
 
     /// app 图标 -> PNG。渲染一次就缓存, 手机侧还有 24 小时的 HTTP 缓存。
+    /// 同样要上锁: 手机一屏能同时发出七八个 /icon 请求(四角 + 每张会话卡),
+    /// 它们落在并发队列上会同时写这个字典。
     private static var iconCache: [String: Data] = [:]
+    private static let iconLock = NSLock()
 
     static func iconPNG(_ bundleID: String, size: CGFloat = 120) -> Data? {
+        iconLock.lock()
+        defer { iconLock.unlock() }
         if let c = iconCache[bundleID] { return c }
         guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
         else { return nil }

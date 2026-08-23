@@ -290,8 +290,16 @@ struct Config: Codable {
 
 enum AppName {
     private static var cache: [String: String] = [:]
+    /// HTTP 请求跑在并发队列上, 每次 /state 都会来查名字 —— 裸静态字典会被写坏。
+    private static let lock = NSLock()
 
     static func of(_ bid: String) -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        return locked_of(bid)
+    }
+
+    private static func locked_of(_ bid: String) -> String {
         switch bid {
         case BundleID.ghostty: return "Ghostty"
         case BundleID.claude:  return "Claude Code"

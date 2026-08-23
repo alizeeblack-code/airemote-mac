@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 /// Claude Code / Codex 的活跃会话。给手机遥控的状态区用 ——
@@ -27,10 +28,17 @@ enum SessionScan {
         let ageSec: Int         // 距最后一次写入多久
         let busy: Bool
         let tool: Tool
+        let appID: String       // 宿主 app 的 bundle id, 给手机取图标
     }
 
-    /// 项目名缓存: 文件路径 -> 名字。名字要读文件内容, 不能每 1.5s 轮询都读。
-    private static var nameCache: [String: String] = [:]
+    /// 项目路径缓存: transcript 路径 -> cwd。cwd 要读文件内容, 不能每 1.5s 轮询都读。
+    private static var cwdCache: [String: String] = [:]
+
+    /// ⚠️ Network.framework 在并发 root queue 上派发连接 —— 两台手机(或一台
+    /// 手机的两次轮询叠在一起)会同时进 recent(), 同时写上面那个字典, 字典
+    /// 直接写坏, 崩在 swift_isUniquelyReferenced。整个扫描串行化, 别只锁字典:
+    /// 反正有缓存, 真正干活的次数很少。
+    private static let lock = NSLock()
 
     /// 前台 app 决定显示哪一边的会话。
     ///
@@ -50,6 +58,8 @@ enum SessionScan {
     /// 同项目开两个会话时显示两行一模一样的名字只是噪音。
     static func recent(tools: Set<Tool> = [.claude, .codex],
                        limit: Int = 5, within: TimeInterval = 8 * 3600) -> [Entry] {
+        lock.lock()
+        defer { lock.unlock() }
         var all: [(Entry, Date)] = []
         if tools.contains(.claude) { all += scanClaude(within: within) }
         if tools.contains(.codex)  { all += scanCodex(within: within) }
@@ -77,8 +87,8 @@ enum SessionScan {
                 newest[key] = (f, m)
             }
         }
-        return newest.values.map { url, m in
-            (entry(name: projectName(url, key: "cwd"), at: m, tool: .claude), m)
+        return newest.map { key, v in
+            (entry(cwd: projectCwd(v.0), fallbackName: key, at: v.1, tool: .claude), v.1)
         }
     }
 
@@ -95,12 +105,13 @@ enum SessionScan {
         var newest: [String: (URL, Date)] = [:]
         for case let f as URL in walker where f.pathExtension == "jsonl" {
             guard let m = modified(f), fresh(m, within) else { continue }
-            let name = projectName(f, key: "cwd")     // 在 payload 里, 下面递归找
-            if let cur = newest[name], cur.1 >= m { continue }
-            newest[name] = (f, m)
+            let cwd = projectCwd(f)                   // 在 payload 里, 下面递归找
+            if let cur = newest[cwd], cur.1 >= m { continue }
+            newest[cwd] = (f, m)
         }
-        return newest.map { name, v in
-            (entry(name: name, at: v.1, tool: .codex), v.1)
+        return newest.map { cwd, v in
+            (entry(cwd: cwd, fallbackName: v.0.deletingLastPathComponent().lastPathComponent,
+                   at: v.1, tool: .codex), v.1)
         }
     }
 
@@ -114,31 +125,35 @@ enum SessionScan {
         Date().timeIntervalSince(m) < within
     }
 
-    private static func entry(name: String, at m: Date, tool: Tool) -> Entry {
+    private static func entry(cwd: String, fallbackName: String,
+                              at m: Date, tool: Tool) -> Entry {
         let age = Date().timeIntervalSince(m)
-        return Entry(name: name, ageSec: Int(age), busy: age < 10, tool: tool)
+        let name = cwd.isEmpty ? fallbackName : (cwd as NSString).lastPathComponent
+        return Entry(name: name, ageSec: Int(age), busy: age < 10, tool: tool,
+                     appID: SessionHost.appID(cwd: cwd, tool: tool))
     }
 
-    /// 目录名是把路径里的 / 换成 - 的编码, 路径本身含 - 就解不回去。
-    /// 两家的 transcript 每行都带 cwd(Codex 包在 payload 里), 从内容读才可靠。
-    private static func projectName(_ url: URL, key: String) -> String {
-        if let cached = nameCache[url.path] { return cached }
-        var name = url.deletingLastPathComponent().lastPathComponent
+    /// 会话的工作目录。目录名是把路径里的 / 换成 - 的编码, 路径本身含 - 就解不回去,
+    /// 所以从内容读 —— 两家的 transcript 都带 cwd(Codex 包在 payload 里)。
+    /// 除了项目名, 这个完整路径还是和活进程 cwd 对账的钥匙(见 SessionHost)。
+    private static func projectCwd(_ url: URL) -> String {
+        if let cached = cwdCache[url.path] { return cached }
+        var cwd = ""
         if let fh = try? FileHandle(forReadingFrom: url) {
             let head = fh.readData(ofLength: 64 * 1024)
             try? fh.close()
-            outer: for line in String(decoding: head, as: UTF8.self)
+            for line in String(decoding: head, as: UTF8.self)
                 .split(separator: "\n").prefix(20) {
                 guard let d = line.data(using: .utf8),
                       let obj = try? JSONSerialization.jsonObject(with: d) else { continue }
-                if let cwd = findString(obj, key: key), !cwd.isEmpty {
-                    name = (cwd as NSString).lastPathComponent
-                    break outer
+                if let hit = findString(obj, key: "cwd"), !hit.isEmpty {
+                    cwd = hit
+                    break
                 }
             }
         }
-        nameCache[url.path] = name
-        return name
+        cwdCache[url.path] = cwd
+        return cwd
     }
 
     /// 往下找一层 key。Claude 的 cwd 在顶层, Codex 的在 payload 里。
