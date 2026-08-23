@@ -157,6 +157,11 @@ final class HTTPServer: ObservableObject {
         var comps = path.split(separator: "/").map(String.init)
         let byCookie = (cookie == cfg.httpToken)
 
+        // 配对请求不看凭据 —— 手机端解除配对后 Cookie 往往还在浏览器/URLSession
+        // 里, 带着旧的【有效】Cookie 重新配对是正当场景。不提前拦的话它会落进
+        // 动作分发, 变成 "unknown action: pair" 的纯文本 404, 手机端一脸懵。
+        if comps.first == "pair" { return handlePair(comps, cfg: cfg) }
+
         if !byCookie {
             guard let t = comps.first, t == cfg.httpToken else {
                 // 没凭据: 根路径给配对页, 其余一律拒绝
