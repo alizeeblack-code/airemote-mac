@@ -234,10 +234,13 @@ final class HTTPServer: ObservableObject {
         let apps = cfgApps().map {
             "{\"id\":\"\(esc($0.0))\",\"name\":\"\(esc($0.1))\",\"act\":\"\(esc($0.2))\"}"
         }.joined(separator: ",")
+        let sessions = SessionScan.recent().map {
+            "{\"name\":\"\(esc($0.name))\",\"ageSec\":\($0.ageSec),\"busy\":\($0.busy)}"
+        }.joined(separator: ",")
         return """
         {"app":"\(esc(front))","appName":"\(esc(AppName.of(front)))",\
         "inTarget":\(AppContext.shared.inTarget()),"apps":[\(apps)],\
-        "row":[\(row)],"extras":[\(extras)]}
+        "row":[\(row)],"extras":[\(extras)],"sessions":[\(sessions)]}
         """
     }
 
