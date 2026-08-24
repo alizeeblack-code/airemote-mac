@@ -128,9 +128,26 @@ enum SessionScan {
     private static func entry(cwd: String, fallbackName: String,
                               at m: Date, tool: Tool) -> Entry {
         let age = Date().timeIntervalSince(m)
-        let name = cwd.isEmpty ? fallbackName : (cwd as NSString).lastPathComponent
+        let name = cwd.isEmpty ? shortFallback(fallbackName)
+                               : (cwd as NSString).lastPathComponent
         return Entry(name: name, ageSec: Int(age), busy: age < 10, tool: tool,
                      appID: SessionHost.appID(cwd: cwd, tool: tool))
+    }
+
+    /// cwd 读不到时的兜底名。
+    ///
+    /// ⚠️ fallbackName 是 Claude 的项目目录名 —— 把路径里的 / 和 . 全换成了 -,
+    /// 比如 /Users/x/code/bidnova/BDFORMAL/.claude-worktrees/eager-wu-f16c2c
+    /// 编码成 -Users-x-code-bidnova-BDFORMAL--claude-worktrees-eager-wu-f16c2c,
+    /// 六十多个字符。之前直接把它当名字发出去, 手机端那排会话卡就被撑爆了。
+    ///
+    /// 编码不可逆(原路径里本来就含 - 的话没法还原), 所以不试图解码, 只取最后
+    /// 一段当短标签: 普通项目正好就是项目名(…-code-alarmpro → alarmpro),
+    /// worktree 则落到那串区分用的后缀(…-eager-wu-f16c2c → f16c2c)。
+    /// 只在读不到 cwd 时才走这里, 正常路径下名字仍是真实的目录名。
+    private static func shortFallback(_ encoded: String) -> String {
+        let last = encoded.split(separator: "-").last.map(String.init) ?? encoded
+        return String(last.prefix(24))
     }
 
     /// 会话的工作目录。目录名是把路径里的 / 换成 - 的编码, 路径本身含 - 就解不回去,
