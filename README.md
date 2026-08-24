@@ -93,8 +93,14 @@ stays inert there.
 
 ## Install
 
-**Download** the notarized build from [Releases](../../releases) — unzip, drag to
-Applications, open.
+**Download** the notarized `.dmg` from [Releases](../../releases), open it and drag
+JoyCoding into Applications. Then launch it from Applications — it lives in the
+menu bar.
+
+> A `.zip` is published too, for scripted installs. If you use it, move the app
+> into Applications before first launch: Accessibility permission is granted
+> **per path**, so running it from Downloads and moving it later means granting
+> again.
 
 Requires **macOS 13 or later**. The build is a universal binary, so it runs
 natively on both Apple Silicon and Intel Macs.

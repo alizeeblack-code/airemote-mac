@@ -5,6 +5,18 @@ cd "$(dirname "$0")"
 APP="build/JoyCoding.app"
 VERSION="0.5.0"
 
+# 开关。原来只认第一个参数是不是 --no-notarize, 加了 --dmg 之后得正经解析,
+# 否则 `./build.sh --dmg` 会被当成"要公证"而 `--no-notarize --dmg` 顺序敏感。
+WANT_DMG=0
+WANT_NOTARIZE=1
+for arg in "$@"; do
+  case "$arg" in
+    --dmg)         WANT_DMG=1 ;;
+    --no-notarize) WANT_NOTARIZE=0 ;;
+    *) echo "未知参数: $arg" >&2; exit 2 ;;
+  esac
+done
+
 # 通用二进制: Intel Mac 也能跑。两个切片都是 minos 13.0,
 # 代码里没有任何架构条件编译, 依赖的全是系统框架, 所以只是编两遍再合并。
 echo "▸ 编译 (arm64 + x86_64)"
@@ -166,7 +178,7 @@ fi
 
 # 公证: 只有用 Developer ID 签名时才有意义。开发证书签的包公证会被拒,
 # 所以按签名身份自动判断, 平时开发构建不会被拖慢。
-if [[ "$JOYPAD_SIGN_ID" == "Developer ID Application"* && "$1" != "--no-notarize" ]]; then
+if [[ "$JOYPAD_SIGN_ID" == "Developer ID Application"* && "$WANT_NOTARIZE" == 1 ]]; then
   if security find-generic-password -s "com.apple.gke.notary.tool" >/dev/null 2>&1 \
      || xcrun notarytool history --keychain-profile notary >/dev/null 2>&1; then
     ZIP="build/JoyCoding.zip"
@@ -182,6 +194,27 @@ if [[ "$JOYPAD_SIGN_ID" == "Developer ID Application"* && "$1" != "--no-notarize
       # 重新打一个已钉票的分发包
       ditto -c -k --keepParent "$APP" "build/JoyCoding-notarized.zip"
       echo "✅ 可分发: build/JoyCoding-notarized.zip"
+
+      # ── DMG ──────────────────────────────────────────────────────
+      # ⚠️ DMG 要**自己再走一遍签名 + 公证 + 钉票**。app 里那张票据管不了外层
+      # 镜像 —— 用户下载的是 DMG, Gatekeeper 检查的也是 DMG。少这一步, 打开时
+      # 照样弹"无法验证开发者"。所以这里是第二次公证, 整体耗时大约翻倍。
+      if [[ "$WANT_DMG" == 1 ]]; then
+        DMG="build/JoyCoding-$VERSION-universal.dmg"
+        echo "▸ 打 DMG"
+        packaging/make-dmg.sh "$APP" "$DMG" "JoyCoding"
+        echo "▸ 签名 DMG"
+        codesign --force --sign "$JOYPAD_SIGN_ID" "$DMG"
+        echo "▸ DMG 送公证（再等 1-3 分钟）"
+        if xcrun notarytool submit "$DMG" --keychain-profile notary --wait; then
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+          echo "✅ 可分发: $DMG"
+        else
+          echo "⚠️ DMG 公证失败, 别拿这个分发。查原因:"
+          echo "   xcrun notarytool log <submission-id> --keychain-profile notary"
+        fi
+      fi
     else
       echo "⚠️ 公证失败, app 仍可本机使用。查原因:"
       echo "   xcrun notarytool log <submission-id> --keychain-profile notary"
@@ -189,6 +222,13 @@ if [[ "$JOYPAD_SIGN_ID" == "Developer ID Application"* && "$1" != "--no-notarize
   else
     echo "⚠️ 没找到 notary 凭据, 跳过公证"
   fi
+elif [[ "$WANT_DMG" == 1 ]]; then
+  # --dmg 但没走公证分支(ad-hoc 签名, 或显式 --no-notarize): 照打, 但说清楚
+  # 这个包只能自己用 —— 没公证的 DMG 在别人机器上会被 Gatekeeper 拦。
+  DMG="build/JoyCoding-$VERSION-universal.dmg"
+  echo "▸ 打 DMG（未公证, 仅供本机测试外观）"
+  packaging/make-dmg.sh "$APP" "$DMG" "JoyCoding"
+  echo "⚠️ $DMG 未经公证, 不要拿去分发"
 fi
 
 # 已经装过就顺手同步过去 —— 否则很容易出现"改了代码但跑的还是旧版本"
