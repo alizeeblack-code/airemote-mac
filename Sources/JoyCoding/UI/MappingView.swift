@@ -193,15 +193,73 @@ struct MappingView: View {
             Spacer()
             Image(systemName: "gamecontroller")
                 .font(.system(size: 44)).foregroundStyle(.tertiary)
-            Text(hid.devices.isEmpty ? L("没检测到手柄") : L("这个手柄还没有外观图"))
-                .foregroundStyle(.secondary)
-            Text(hid.devices.isEmpty
-                 ? L("蓝牙配对后按一下手柄任意键唤醒它")
-                 : L("按键仍可正常映射，只是画不出图形"))
-                .font(.subheadline).foregroundStyle(.tertiary)
+            if hid.devices.isEmpty {
+                noDeviceGuide
+            } else {
+                // 手柄在, 只是没画过它的外观图 —— 映射照常能用, 说清楚就行
+                Text(L("这个手柄还没有外观图")).foregroundStyle(.secondary)
+                Text(L("按键仍可正常映射，只是画不出图形"))
+                    .font(.subheadline).foregroundStyle(.tertiary)
+            }
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// 一个手柄都没有时的引导。
+    ///
+    /// 这一页是设置窗口的**默认标签页**, 所以没手柄的人一打开设置第一眼就是
+    /// 这里 —— 原来只有"没检测到手柄 / 蓝牙配对后按一下"两行小字, 既没说
+    /// 怎么配对, 也把 USB 这条路藏了(HID 是按 usage page 认的, 线连一样识别)。
+    private var noDeviceGuide: some View {
+        VStack(spacing: 14) {
+            Text(L("没检测到手柄")).font(.title3).foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "dot.radiowaves.left.and.right")
+                        .foregroundStyle(.secondary).frame(width: 18)
+                    Text(L("在系统设置里和手柄蓝牙配对")).foregroundStyle(.secondary)
+                    Button(L("打开蓝牙设置")) {
+                        // macOS 13 起系统设置是 ExtensionKit 面板, 用这个 URL 直达。
+                        // 打不开也不至于卡住 —— 上面那句话已经说清该去哪。
+                        if let u = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings") {
+                            NSWorkspace.shared.open(u)
+                        }
+                    }
+                    .font(.subheadline)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "cable.connector")
+                        .foregroundStyle(.secondary).frame(width: 18)
+                    Text(L("或者直接用 USB 线连上，不配对也能用"))
+                        .foregroundStyle(.secondary)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "hand.tap")
+                        .foregroundStyle(.secondary).frame(width: 18)
+                    Text(L("连上后按一下手柄任意键唤醒它"))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.subheadline)
+            .padding(.vertical, 14).padding(.horizontal, 18)
+            .background(.quaternary.opacity(0.35),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            Text(L("Switch Pro、Joy-Con、DualSense 有外观图；其他手柄也能映射，只是画不出图形"))
+                .font(.caption).foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 460)
+
+            Divider().frame(width: 260).padding(.top, 4)
+
+            HStack(spacing: 6) {
+                Text(L("没有手柄？")).font(.subheadline).foregroundStyle(.tertiary)
+                Button(L("用手机遥控")) { SettingsNav.shared.tab = .remote }
+                    .font(.subheadline)
+            }
+        }
     }
 
     // MARK: - 画布: 手柄居中, 卡片分列两侧, 细线相连

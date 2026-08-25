@@ -136,6 +136,17 @@ enum Translations {
         "用手机相机扫码，或在浏览器打开：": "Scan with your phone camera, or open in a browser:",
         "对应手机遥控界面圆盘四周的四个 app 图标":
             "The four app icons around the D-pad on the phone remote",
+        // 按键映射页: 一个手柄都没连时的引导
+        "在系统设置里和手柄蓝牙配对": "Pair your controller over Bluetooth in System Settings",
+        "打开蓝牙设置": "Open Bluetooth settings",
+        "或者直接用 USB 线连上，不配对也能用":
+            "Or just plug it in with a USB cable — no pairing needed",
+        "连上后按一下手柄任意键唤醒它":
+            "Once connected, press any button on the controller to wake it",
+        "Switch Pro、Joy-Con、DualSense 有外观图；其他手柄也能映射，只是画不出图形":
+            "Switch Pro, Joy-Con and DualSense have artwork; other controllers still map, just without a picture",
+        "没有手柄？": "No controller?",
+        "用手机遥控": "Use the phone remote",
         "学习方向": "Learn directions", "取消": "Cancel", "重新开始": "Start over",
         "添加按键": "Add button", "重启 JoyCoding": "Restart JoyCoding",
         "去授权": "Grant…", "辅助功能已授权": "Accessibility granted",
