@@ -345,6 +345,7 @@ struct OverviewView: View {
         }
         .font(.caption).foregroundStyle(.secondary)
         .padding(.horizontal, 16).padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func sectionHeader(_ t: String) -> some View {
@@ -405,8 +406,11 @@ struct OverviewView: View {
     }
 
     private func row(highlight: Bool, @ViewBuilder _ content: () -> some View) -> some View {
-        VStack(spacing: 0) {
+        // alignment 必须显式 .leading —— VStack 默认居中, 一旦某行内容没撑满
+        // 整行宽度, 整排就会被推到中间去
+        VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0, content: content)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16).padding(.vertical, 7)
             Divider().opacity(0.4)
         }
@@ -440,9 +444,14 @@ struct OverviewView: View {
                                  : (inherited ? Color.secondary.opacity(0.7) : Color.primary))
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())      // 整格可点, 不只是文字那几个像素
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
+        // ⚠️ 这行不能少。.borderlessButton 的 Menu **按内容取固有宽度**,
+        // 上面那个 maxWidth 加在 label 的 Text 上, 管不到 Menu 自己 ——
+        // 少了它三列会缩成内容宽, 挤在一起且对不上表头。
+        .frame(maxWidth: .infinity, alignment: .leading)
         .disabled(device == nil)
         .help(unsupported ? L("这个 app 没有对应的快捷键，按下去不会有反应")
                           : L("点一下改这个动作"))
