@@ -45,6 +45,7 @@ struct OverviewView: View {
     @Binding var selectedID: String?
     @ObservedObject var store = ConfigStore.shared
     @ObservedObject var hid = HIDInput.shared
+    @ObservedObject var batt = JoyConBattery.shared
 
     /// 当前查看的层。"" = 基础层, 否则是 app 的 bundleID
     @State private var layer = ""
@@ -164,6 +165,18 @@ struct OverviewView: View {
             }
             if device != nil {
                 Circle().fill(.green).frame(width: 7, height: 7)
+            }
+            // 电量。图形页顶栏一直有, 表格页漏了 —— 两边都是"看这只手柄"的
+            // 地方, 没道理切过来就不见了。
+            if let d = device, let pct = batt.levels[d.id] {
+                Label {
+                    Text("\(pct)%").font(.subheadline).monospacedDigit()
+                } icon: {
+                    Image(systemName: batt.charging[d.id] == true
+                          ? "battery.100.bolt" : JoyConBattery.symbol(pct))
+                }
+                .foregroundStyle(pct <= 20 ? Color.orange : Color.secondary)
+                .help(L("Joy-Con 电量"))
             }
             Spacer()
             if !layer.isEmpty {
@@ -351,10 +364,21 @@ struct OverviewView: View {
                 Text("\(a.id)").font(.caption).foregroundStyle(.tertiary)
             }
             .frame(width: 150, alignment: .leading)
-            slot(eff?.tap,    inherited: !ov)
-            slot(eff?.double, inherited: !ov)
-            slot(eff?.long,   inherited: !ov)
+            // 覆盖以整颗按键为单位, 所以"恢复继承"三列给同一个动作
+            let clear: (() -> Void)? = (!layer.isEmpty && ov) ? {
+                guard let d = device else { return }
+                BindingEditor(device: d, layer: layer).clearOverride(a.id)
+            } : nil
+            slot(eff?.tap,    inherited: !ov, clearOverride: clear) { write(a.id, \.tap,    $0) }
+            slot(eff?.double, inherited: !ov, clearOverride: clear) { write(a.id, \.double, $0) }
+            slot(eff?.long,   inherited: !ov, clearOverride: clear) { write(a.id, \.long,   $0) }
         }
+    }
+
+    private func write(_ n: Int, _ path: WritableKeyPath<ButtonBinding, String?>,
+                       _ v: String?) {
+        guard let d = device else { return }
+        BindingEditor(device: d, layer: layer).set(n, path, v)
     }
 
     private func stickRow(_ ch: StickChannel, _ dir: String) -> some View {
@@ -370,7 +394,10 @@ struct OverviewView: View {
                 Text(ch == .hat ? L("主方向") : L("右摇杆")).font(.body)
             }
             .frame(width: 150, alignment: .leading)
-            slot(eff, inherited: !ov)
+            slot(eff, inherited: !ov) { v in
+                guard let d = device else { return }
+                BindingEditor(device: d, layer: layer).setDir(ch, dir, v)
+            }
             // 摇杆方向只有单击语义, 另外两列留空
             Text("").frame(maxWidth: .infinity)
             Text("").frame(maxWidth: .infinity)
@@ -386,19 +413,39 @@ struct OverviewView: View {
         .background(highlight ? Color.accentColor.opacity(0.14) : .clear)
     }
 
-    /// 一格。继承基础层的显示 ↳ 浅色; 该 app 没有对应快捷键的动作显示 "—"
-    /// (显示成"↳ 继承"会让人以为它能用)。
-    private func slot(_ action: String?, inherited: Bool) -> some View {
+    /// 一格 —— **可点可改**。继承基础层的显示 ↳ 浅色; 该 app 没有对应快捷键
+    /// 的动作显示 "—"(显示成"↳ 继承"会让人以为它能用)。
+    ///
+    /// 菜单项和写入都走 BindingEditor / ActionMenuItems, 和图形页同一份实现:
+    /// 覆盖层"首次改动要把基础层整颗键拷过来"的语义只有一处, 不会两边跑偏。
+    @ViewBuilder
+    private func slot(_ action: String?, inherited: Bool,
+                      clearOverride: (() -> Void)? = nil,
+                      apply: @escaping (String?) -> Void) -> some View {
         let unsupported = unsupported(action)
         let s = action.map(name) ?? "—"
-        return Text(unsupported ? "—" : (inherited && action != nil ? "↳ " + s : s))
-            .font(.body)
-            .foregroundStyle(action == nil || unsupported
-                             ? Color.secondary.opacity(0.35)
-                             : (inherited ? Color.secondary.opacity(0.7) : Color.primary))
-            .help(unsupported ? L("这个 app 没有对应的快捷键，按下去不会有反应") : "")
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        Menu {
+            ActionMenuItems(layer: layer, pick: apply)
+            // "未设置"是**显式解绑**(这颗键在这个 app 里什么都不干),
+            // 和"回到继承基础层"是两回事。只有已经覆盖过才给这项。
+            if let clearOverride {
+                Divider()
+                Button(L("恢复继承基础层"), action: clearOverride)
+            }
+        } label: {
+            Text(unsupported ? "—" : (inherited && action != nil ? "↳ " + s : s))
+                .font(.body)
+                .foregroundStyle(action == nil || unsupported
+                                 ? Color.secondary.opacity(0.35)
+                                 : (inherited ? Color.secondary.opacity(0.7) : Color.primary))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .disabled(device == nil)
+        .help(unsupported ? L("这个 app 没有对应的快捷键，按下去不会有反应")
+                          : L("点一下改这个动作"))
     }
 
     private func unsupported(_ action: String?) -> Bool {

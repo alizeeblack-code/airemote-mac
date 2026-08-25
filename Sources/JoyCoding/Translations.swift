@@ -139,6 +139,8 @@ enum Translations {
         "对应手机遥控界面圆盘四周的四个 app 图标":
             "The four app icons around the D-pad on the phone remote",
         "按一下手柄，这里会显示是哪颗键": "Press a button — it shows up here",
+        "点一下改这个动作": "Click to change this action",
+        "恢复继承基础层": "Back to inheriting Base",
         "未绑定": "Not bound",
         // 表格视图 0825 重做(左侧选层 + 三列)
         "肩键与扳机": "Shoulders & Triggers",

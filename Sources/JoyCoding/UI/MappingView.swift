@@ -454,7 +454,7 @@ struct MappingView: View {
                 .frame(width: 32, alignment: .leading)
             Menu {
                 if sd != nil {
-                    actionMenuItems { setDir(d, ch, dir, $0) }
+                    ActionMenuItems(layer: layer) { editor(d).setDir(ch, dir, $0) }
                 } else {
                     Text(L("先点右上角学习「%@」", chLabel(ch)))
                 }
@@ -535,7 +535,7 @@ struct MappingView: View {
                     .frame(width: 30, alignment: .leading)
             }
             Menu {
-                actionMenuItems { set(d, n, path, $0) }
+                ActionMenuItems(layer: layer) { editor(d).set(n, path, $0) }
             } label: {
                 Text(current.flatMap { Actions.byID[$0]?.name } ?? L("未设置"))
                     .font(primary ? .body : .subheadline)
@@ -552,7 +552,7 @@ struct MappingView: View {
     private func addChip(_ d: ConnectedDevice, _ n: Int, _ title: String,
                          _ path: WritableKeyPath<ButtonBinding, String?>) -> some View {
         Menu {
-            actionMenuItems { set(d, n, path, $0) }
+            ActionMenuItems(layer: layer) { editor(d).set(n, path, $0) }
         } label: {
             Text("＋\(title)").font(.caption)
                 .foregroundStyle(.secondary)
@@ -571,7 +571,7 @@ struct MappingView: View {
             Text(title).font(.caption).foregroundStyle(.secondary)
                 .frame(width: 32, alignment: .leading)
             Menu {
-                actionMenuItems { set(d, n, path, $0) }
+                ActionMenuItems(layer: layer) { editor(d).set(n, path, $0) }
             } label: {
                 Text(current.flatMap { Actions.byID[$0]?.name } ?? L("未设置"))
                     .font(.subheadline)
@@ -661,65 +661,6 @@ struct MappingView: View {
 
     // MARK: - 配置读写
 
-    /// 当前层的菜单该怎么分组。
-    /// 整组都用不了的收进「其它 app 专属」, 不占顶层位置 ——
-    /// 在 Claude Code 层顶着一个「Chrome」组是纯噪音。
-    /// 基础层不做收拢: 基础层对所有 app 生效, 绑个 app 专属动作是合理的。
-    private var groupSplit: (primary: [String], other: [String]) {
-        let all = Actions.groups
-        guard !layer.isEmpty else { return (all, []) }
-        var primary: [String] = [], other: [String] = []
-        for g in all {
-            if Actions.all.filter({ $0.group == g }).contains(where: available) {
-                primary.append(g)
-            } else {
-                other.append(g)
-            }
-        }
-        // 当前 app 自己的组排最前, 最常用的放最近
-        let own = primary.filter { g in
-            Actions.all.first { $0.group == g }?.onlyIn == layer
-        }
-        return (own + primary.filter { !own.contains($0) }, other)
-    }
-
-    @ViewBuilder
-    private func actionMenuItems(_ pick: @escaping (String?) -> Void) -> some View {
-        let split = groupSplit
-        Button(L("未设置")) { pick(nil) }
-        ForEach(split.primary, id: \.self) { g in
-            Menu(g) {
-                ForEach(Actions.all.filter { $0.group == g }) { act in
-                    Button(actionLabel(act)) { pick(act.id) }
-                        .disabled(!available(act))
-                }
-            }
-        }
-        if !split.other.isEmpty {
-            Menu(L("其它 app 专属（本层无效）")) {
-                ForEach(split.other, id: \.self) { g in
-                    Menu(g) {
-                        ForEach(Actions.all.filter { $0.group == g }) { act in
-                            Button(act.name) { }.disabled(true)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// 动作在当前层是否有效。无效的不隐藏, 只置灰并标注 ——
-    /// 隐藏会让人以为功能没了。
-    private func available(_ a: ActionDef) -> Bool {
-        guard let only = a.onlyIn else { return true }
-        return layer.isEmpty || layer == only
-    }
-
-    private func actionLabel(_ a: ActionDef) -> String {
-        guard let only = a.onlyIn, !available(a) else { return a.name }
-        return L("%@（仅 %@）", a.name, AppName.of(only))
-    }
-
     private func clearOverride(_ d: ConnectedDevice, _ n: Int) {
         mutate(d) { p in
             p.overrides[layer]?.buttons.removeValue(forKey: String(n))
@@ -727,21 +668,10 @@ struct MappingView: View {
         }
     }
 
-    private func set(_ d: ConnectedDevice, _ n: Int,
-                     _ path: WritableKeyPath<ButtonBinding, String?>, _ v: String?) {
-        mutate(d) { p in
-            if layer.isEmpty {
-                p.buttons[String(n), default: .init()][keyPath: path] = v
-            } else {
-                // 首次覆盖: 先把基础层这颗键整个拷过来, 再改 ——
-                // 覆盖以整颗按键为单位, 不做按手势继承
-                var ov = p.overrides[layer] ?? AppOverride()
-                var b = ov.buttons[String(n)] ?? p.buttons[String(n)] ?? ButtonBinding()
-                b[keyPath: path] = v
-                ov.buttons[String(n)] = b
-                p.overrides[layer] = ov
-            }
-        }
+
+    /// 写入口。实现在 BindingEditor —— 表格页共用同一份, 覆盖层语义只有一处
+    private func editor(_ d: ConnectedDevice) -> BindingEditor {
+        BindingEditor(device: d, layer: layer)
     }
 
     private func mutate(_ d: ConnectedDevice, _ body: (inout DeviceProfile) -> Void) {
