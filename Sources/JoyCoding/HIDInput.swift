@@ -205,6 +205,9 @@ final class HIDInput: ObservableObject {
         var mouseChs: Set<StickChannel> = []
         for (ch, v) in vecs where prof?.stickMode(ch) == "mouse" {
             mouseChs.insert(ch)
+            // 设置窗口在前台时不推光标 —— 否则人正在配键, 鼠标自己在屏幕上
+            // 乱跑。仍然占住 mouseChs, 免得这根摇杆掉回"方向 -> 动作"那条路。
+            guard !SettingsWindow.shared.isFront else { continue }
             MousePad.apply("\(deviceID)/\(ch.rawValue)", v.map { (x: $0.0, y: $0.1) })
         }
 
@@ -226,6 +229,9 @@ final class HIDInput: ObservableObject {
 
     private func onButton(_ n: Int, down: Bool, device: String) {
         previewHandler?(.button(n, down: down))
+        // 设置窗口在前台: 只点亮界面, 不发给系统。顺序要紧 —— 必须在
+        // previewHandler 之后, 否则映射页的实时高亮也一起没了。
+        if SettingsWindow.shared.isFront { return }
         // 覆盖优先, 回落基础层
         let app = AppContext.shared.frontBundle
         guard let prof = profile(device) else {
@@ -306,6 +312,10 @@ final class HIDInput: ObservableObject {
         previewHandler?(.hat(dir, ch))
         // 学习方向时才拦截, 免得学的过程中摇杆还在翻页
         if let cap = captureHandler { cap(.hat(dir, ch)); return }
+        // 设置窗口在前台: 只点亮界面, 不发给系统。
+        // ⚠️ 必须排在 captureHandler **之后** —— 学习方向向导本来就是在设置
+        // 窗口前台跑的, 拦在它前面等于把向导整个废掉。
+        if SettingsWindow.shared.isFront { return }
         repeatTimer?.invalidate(); repeatTimer = nil; repeatButton = nil
 
         guard let dir, let p = profile(device),

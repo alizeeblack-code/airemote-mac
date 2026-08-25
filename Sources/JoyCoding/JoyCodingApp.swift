@@ -55,6 +55,14 @@ final class SettingsWindow {
     static let shared = SettingsWindow()
     private var window: NSWindow?
 
+    /// 设置窗口是不是当前的 key 窗口。
+    ///
+    /// 用来在配键时**吞掉按键**: 窗口在前台时按手柄, 合成出来的键盘事件本来
+    /// 就会落到设置窗口自己身上(KeySynth 发给 frontmostApplication), 什么用
+    /// 都没有; 而"切到 Claude Code"这类不查白名单的动作还会真的把窗口切走,
+    /// 人正配着键就被弹出去了。
+    var isFront: Bool { window?.isKeyWindow == true }
+
     func show(tab: SettingsNav.Tab? = nil) {
         if let tab { SettingsNav.shared.tab = tab }
         NSApp.activate(ignoringOtherApps: true)

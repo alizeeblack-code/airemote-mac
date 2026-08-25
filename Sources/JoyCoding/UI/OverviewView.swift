@@ -72,7 +72,10 @@ struct OverviewView: View {
     /// 表里列出的按键: 有外观图就列**全部**锚点(没绑的显示 "—", 让人看见
     /// 这颗键存在且空着); 没外观图退回"只列绑过的", 用编号当名字。
     private var anchors: [ButtonAnchor] {
-        if let a = art { return a.anchors }
+        // 摇杆方向是虚拟锚点(id 用负数和真实按键错开), 它不是一颗按键 ——
+        // 漏进来就会多出一行 "摇杆方向 -1 —", 而真正的方向在下面的分节里。
+        // 画布那边同样把它们排除在按键之外。
+        if let a = art { return a.anchors.filter { StickChannel.from(anchorID: $0.id) == nil } }
         guard let p = profile else { return [] }
         var ids = Set(p.buttons.keys.compactMap(Int.init))
         for (_, o) in p.overrides { ids.formUnion(o.buttons.keys.compactMap(Int.init)) }
@@ -86,9 +89,17 @@ struct OverviewView: View {
         anchors.filter { AnchorGroup.of($0.label) == g }
     }
 
-    /// 这只手柄学过方向的通道
+    /// 这只手柄**实际拥有**且学过方向的通道。
+    ///
+    /// 只按 profile 里有没有数据来判断是不够的: 配置换过手柄、或早期版本
+    /// 把十字键和左摇杆合流时留下的数据都会残留, 于是单只 Joy-Con(只有一颗
+    /// 摇杆)也会列出"右摇杆"四行。以外观图声明的通道为准 —— 画布那边
+    /// 一直是这么判断的。
     private var channels: [StickChannel] {
-        StickChannel.allCases.filter { !(profile?.sticks[$0.rawValue]?.isEmpty ?? true) }
+        let owned: [StickChannel] = art.map { a in
+            a.anchors.compactMap { StickChannel.from(anchorID: $0.id) }
+        } ?? [.hat]
+        return owned.filter { !(profile?.sticks[$0.rawValue]?.isEmpty ?? true) }
     }
 
     /// 某层的角标: 覆盖了多少颗键(按键 + 摇杆方向)
@@ -191,23 +202,29 @@ struct OverviewView: View {
     /// 复用画布那套 DeviceBody(它本来就是独立 View), 传同一个 highlighted ——
     /// 于是按一下手柄, 图上的键和表格里的行**同时亮**, 不用在两个视图之间
     /// 来回对照才能认出这颗键叫什么。
+    /// 缩略图卡片尺寸。Joy-Con 细高(aspect 0.355)会得到 90×254,
+    /// Pro/PS 扁宽会撞宽度上限得到 244×168 —— 卡片外框都是 254 高。
+    private let cardH: CGFloat = 254
+    private let cardMaxW: CGFloat = 244
+
     @ViewBuilder
     private var deviceCard: some View {
         if let art {
             VStack(alignment: .leading, spacing: 8) {
+                // 卡片高度固定, 设备等比装进去(aspect-fit)。
+                //
+                // **不能只定宽度**: Joy-Con 的 aspect 是 0.355, 228 宽算出来
+                // 642pt 高, 直接把层列表挤出屏幕。也不能只定高度: Pro 手柄
+                // 会超出侧栏宽度。所以两边都设上限, 取能装下的那个。
+                // 卡片本身高度写死 —— 换手柄时层列表位置不动。
+                let w = min(cardMaxW, cardH * art.aspect)
                 DeviceBody(art: art,
                            bound: Set((profile?.buttons ?? [:]).compactMap { Int($0.key) }),
                            highlighted: pressed,
                            liveDir: liveDir)
-                    // 等比装进 228×150 的盒子。**不能只定宽度** —— Joy-Con 的
-                    // aspect 是 0.355, 228 宽算出来 642pt 高, 直接把下面的层
-                    // 列表挤出屏幕。改成以高度为准、宽度不超上限:
-                    // Joy-Con 得到 53×150(细高, 本来就是这形状),
-                    // Pro/PS 得到 ~218×150 —— 两种都是 150 高, 列表位置不动。
-                    .frame(width: min(228, 150 * art.aspect),
-                           height: min(228, 150 * art.aspect) / art.aspect)
-                    .padding(.vertical, 10)
+                    .frame(width: w, height: w / art.aspect)
                     .frame(maxWidth: .infinity)
+                    .frame(height: cardH)
                     .background(Color.primary.opacity(0.04),
                                 in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
