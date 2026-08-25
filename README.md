@@ -68,9 +68,10 @@ everywhere, but *Back* in Chrome, because a browser has no text to delete.
 <img src="docs/images/en/overview.png" width="760" alt="Overview — every button across every app">
 </p>
 <p align="center"><sub>
-<b>The table view</b> (Settings → Controller → Table) lays the two layers side by side: the semantic action on the left,
-what each app turns it into across the columns. Greyed <code>↳</code> means
-"inherits the base layer"; bold means this app overrides it.
+<b>The table view</b> (Settings → Controller → Table) shows one layer at a time:
+pick Base or an app's override layer on the left; rows are buttons across
+tap / double / hold, with a badge counting each layer's overrides. Greyed
+<code>↳</code> means "inherits the base layer".
 </sub></p>
 
 <p align="center">

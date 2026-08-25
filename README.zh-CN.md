@@ -67,8 +67,9 @@ ChatGPT 聚焦输入框是 `⇧⎋`，而 Claude Code 压根没有这个快捷�
 <img src="docs/images/zh/overview.png" width="760" alt="总览 —— 每个按键在每个 app 里的落点">
 </p>
 <p align="center"><sub>
-<b>表格视图</b>（设置 → 手柄 → 表格）把两层摊开并排看：左边是语义动作，右边各列是它在每个 app 里变成了什么。
-灰色 <code>↳</code> 表示「沿用基础层」，加粗表示这个 app 覆盖了它。
+<b>表格视图</b>（设置 → 手柄 → 表格）一次看一层：左侧选基础层或某个 app 的覆盖层，
+右侧是 按键 ×（单击 / 双击 / 长按），角标显示每层覆盖了几颗键。
+灰色 <code>↳</code> 表示「沿用基础层」。
 </sub></p>
 
 <p align="center">

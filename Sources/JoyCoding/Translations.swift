@@ -138,6 +138,12 @@ enum Translations {
         "用手机相机扫码，或在浏览器打开：": "Scan with your phone camera, or open in a browser:",
         "对应手机遥控界面圆盘四周的四个 app 图标":
             "The four app icons around the D-pad on the phone remote",
+        // 表格视图 0825 重做(左侧选层 + 三列)
+        "肩键与扳机": "Shoulders & Triggers",
+        "面键": "Face Buttons",
+        "系统键": "System",
+        "层": "Layers",
+        "键位档案…": "Key profile…",
         // 设置页信息架构 0824 重组
         "图形": "Visual", "表格": "Table",
         "语音听写": "Dictation", "App": "Apps",

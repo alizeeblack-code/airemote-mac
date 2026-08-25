@@ -17,6 +17,8 @@ struct MappingView: View {
     /// 当前编辑的层。"" = 基础层, 否则是 app 的 bundleID。
     @State private var layer = ""
     @State private var stickStep = 0
+    /// previewHandler 的认领凭据(见 HIDInput.previewOwner)
+    @State private var watchToken = UUID()
 
     /// (方向键, 默认动作)。提示文案按设备现生成 —— Joy-Con 上是摇杆要"推",
     /// Pro 手柄上这个通道其实是十字键, 得说"按"。
@@ -598,6 +600,7 @@ struct MappingView: View {
 
     /// 只旁观, 不拦截 —— 按 A 该发的回车照发, 界面只是跟着亮一下
     private func watchPresses() {
+        HIDInput.shared.previewOwner = watchToken
         HIDInput.shared.previewHandler = { input in
             DispatchQueue.main.async {
                 switch input {
@@ -616,7 +619,11 @@ struct MappingView: View {
     }
 
     private func stopWatching() {
-        HIDInput.shared.previewHandler = nil
+        // 只清自己装的 —— 见 HIDInput.previewOwner 的注释
+        if HIDInput.shared.previewOwner == watchToken {
+            HIDInput.shared.previewHandler = nil
+            HIDInput.shared.previewOwner = nil
+        }
         HIDInput.shared.captureHandler = nil
     }
 

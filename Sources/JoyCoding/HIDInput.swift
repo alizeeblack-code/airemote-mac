@@ -24,6 +24,10 @@ final class HIDInput: ObservableObject {
     /// 旁观者: 界面用来实时点亮按下的键。【绝不拦截】动作派发 ——
     /// 早期版本把它做成拦截式的, 结果一打开设置页手柄就在所有地方失效了。
     var previewHandler: ((RawInput) -> Void)?
+    /// previewHandler 当前归哪个视图。图形/表格两个视图切换时, SwiftUI 可能
+    /// **先调新视图的 onAppear 再调旧视图的 onDisappear** —— 不带认领的话,
+    /// 旧视图退场会把新视图刚装上的 handler 清掉, 实时高亮就静默失效。
+    var previewOwner: UUID?
     /// 拦截式: 只在"学习摇杆方向"时设上, 期间摇杆不触发动作
     var captureHandler: ((RawInput) -> Void)?
     /// 排查用: 最后一次收到的输入, 不管来自哪只手柄
