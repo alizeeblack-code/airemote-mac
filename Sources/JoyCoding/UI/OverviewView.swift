@@ -90,6 +90,16 @@ struct OverviewView: View {
         anchors.filter { AnchorGroup.of($0.label) == g }
     }
 
+    /// 通道在这只手柄上叫什么。
+    ///
+    /// ⚠️ 不能写成 `ch == .hat ? 主方向 : 右摇杆` —— 通道有 hat/left/right
+    /// **三个**, 那么写会把 Pro 手柄的左摇杆也标成"右摇杆"(于是表里出现两个
+    /// 右摇杆)。优先用外观图锚点上的名字, 比枚举的通用名更准: 同样是 hat,
+    /// Pro 上是十字键、Joy-Con 上是摇杆。
+    private func chLabel(_ ch: StickChannel) -> String {
+        art?.anchors.first { $0.id == ch.anchorID }?.label ?? ch.label
+    }
+
     /// 这只手柄**实际拥有**且学过方向的通道。
     ///
     /// 只按 profile 里有没有数据来判断是不够的: 配置换过手柄、或早期版本
@@ -392,7 +402,7 @@ struct OverviewView: View {
             HStack(spacing: 4) {
                 Image(systemName: StickAnchor.arrow[dir]!)
                     .font(.system(size: 11, weight: .bold))
-                Text(ch == .hat ? L("主方向") : L("右摇杆")).font(.body)
+                Text(chLabel(ch)).font(.body)
             }
             .frame(width: 150, alignment: .leading)
             slot(eff, inherited: !ov) { v in
@@ -504,7 +514,7 @@ struct OverviewView: View {
             out += "| \(a.label) | " + cells.joined(separator: " | ") + " |\n"
         }
         for ch in channels {
-            let prefix = ch == .hat ? L("主方向") : L("右摇杆")
+            let prefix = chLabel(ch)
             for dir in DeviceProfile.dirKeys {
                 let act = layer.isEmpty ? p.stickDir(ch, dir)?.action
                                         : p.stickAction(ch, dir: dir, app: layer)
