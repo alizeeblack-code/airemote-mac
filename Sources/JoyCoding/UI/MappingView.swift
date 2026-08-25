@@ -69,9 +69,11 @@ struct MappingView: View {
         VStack(spacing: 0) {
             topBar
             Divider()
-            layerBar
-            Divider()
+            // 层胶囊只在画布可用时出现 —— 没手柄(或没外观图)时既没有可编辑的
+            // 层, 胶囊点了也什么都不发生, 还把空状态引导挤到更低的位置
             if let d = device, let art {
+                layerBar
+                Divider()
                 canvas(d, art)
             } else {
                 emptyState
