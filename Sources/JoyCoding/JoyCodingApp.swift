@@ -12,14 +12,14 @@ struct JoyCodingApp: App {
         MenuBarExtra {
             if hid.devices.isEmpty {
                 Button(L("没有手柄 — 按一下手柄任意键唤醒")) {
-                    SettingsWindow.shared.show(tab: .mapping)
+                    SettingsWindow.shared.show(tab: .controller)
                 }
             } else {
                 ForEach(hid.devices) { d in
                     Button(batt.levels[d.id].map {
                         "🎮 \(d.name)   \($0)%" + (batt.charging[d.id] == true ? " ⚡" : "")
                     } ?? "🎮 \(d.name)") {
-                        SettingsWindow.shared.show(tab: .mapping)
+                        SettingsWindow.shared.show(tab: .controller)
                     }
                 }
             }

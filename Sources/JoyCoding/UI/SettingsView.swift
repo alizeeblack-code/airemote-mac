@@ -5,8 +5,8 @@ import AppKit
 /// 所以选中项得放在外面, 不能藏在 TabView 内部。
 final class SettingsNav: ObservableObject {
     static let shared = SettingsNav()
-    enum Tab: Hashable { case mapping, overview, general, voice, remote }
-    @Published var tab: Tab = .mapping
+    enum Tab: Hashable { case controller, apps, general, voice, remote }
+    @Published var tab: Tab = .controller
 }
 
 struct SettingsView: View {
@@ -14,18 +14,171 @@ struct SettingsView: View {
 
     var body: some View {
         TabView(selection: $nav.tab) {
-            MappingView().tabItem { Label(L("按键映射"), systemImage: "gamecontroller") }
-                .tag(SettingsNav.Tab.mapping)
-            OverviewView().tabItem { Label(L("总览"), systemImage: "tablecells") }
-                .tag(SettingsNav.Tab.overview)
-            GeneralView().tabItem { Label(L("通用"), systemImage: "gearshape") }
-                .tag(SettingsNav.Tab.general)
-            VoiceView().tabItem { Label(L("语音"), systemImage: "mic") }
+            ControllerView().tabItem { Label(L("手柄"), systemImage: "gamecontroller") }
+                .tag(SettingsNav.Tab.controller)
+            AppsView().tabItem { Label(L("App"), systemImage: "square.grid.2x2") }
+                .tag(SettingsNav.Tab.apps)
+            VoiceView().tabItem { Label(L("语音听写"), systemImage: "mic") }
                 .tag(SettingsNav.Tab.voice)
             RemoteView().tabItem { Label(L("手机遥控"), systemImage: "iphone") }
                 .tag(SettingsNav.Tab.remote)
+            GeneralView().tabItem { Label(L("通用"), systemImage: "gearshape") }
+                .tag(SettingsNav.Tab.general)
         }
         .frame(minWidth: 1040, minHeight: 680)
+    }
+}
+
+// MARK: - 手柄 (图形/表格 两视图)
+
+/// 映射编辑(画布)和映射总表是**同一份数据的两个视图**, 以前分居两个标签页,
+/// 名字("按键映射"/"总览")还都在说映射, 点哪个全凭猜。合成一页, 顶栏分段
+/// 控件切换; 两个视图本体不动, 只换这层壳。
+enum ControllerMode: String { case canvas, table }
+
+struct ControllerView: View {
+    /// 窗口存续期间记住停在哪个视图; 不跨启动持久, 没这个必要
+    @State private var mode: ControllerMode = .canvas
+
+    var body: some View {
+        if mode == .canvas {
+            MappingView(mode: $mode)
+        } else {
+            OverviewView(mode: $mode)
+        }
+    }
+}
+
+/// 两个视图的顶栏里都放同一个切换器, 位置一致才不用来回找
+struct ControllerModePicker: View {
+    @Binding var mode: ControllerMode
+    var body: some View {
+        Picker("", selection: $mode) {
+            Text(L("图形")).tag(ControllerMode.canvas)
+            Text(L("表格")).tag(ControllerMode.table)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+    }
+}
+
+// MARK: - App
+
+/// 生效的 app + 每个 app 的键位档案。
+///
+/// 白名单原来埋在「通用」第三节, 但它是三处功能的数据源(总览的列、遥控
+/// 四角、档案), 新用户第一天就得配, 不是"不常动的系统偏好"。档案入口
+/// 原来只有总览的**列头可点**, 隐蔽到基本发现不了 —— 在这里每行都是
+/// 一等入口。
+private struct AppBox: Identifiable { let id: String }
+
+struct AppsView: View {
+    @ObservedObject var store = ConfigStore.shared
+    @State private var newApp = ""
+    @State private var editing: String?
+
+    var body: some View {
+        Form {
+            Section(L("生效的 app")) {
+                Toggle(L("只在下列 app 里响应通用按键"), isOn: $store.config.restrictToTargets)
+                Text(L("whitelistHint"))
+                    .font(.subheadline).foregroundStyle(.secondary)
+                Text(L("点某一行，编辑这个 app 里各动作发什么快捷键"))
+                    .font(.caption).foregroundStyle(.secondary)
+
+                List {
+                    ForEach(store.config.targetApps, id: \.self) { b in
+                        HStack(spacing: 8) {
+                            Button { editing = b } label: {
+                                HStack(spacing: 8) {
+                                    if let icon = NSWorkspace.shared
+                                        .urlForApplication(withBundleIdentifier: b)
+                                        .map({ NSWorkspace.shared.icon(forFile: $0.path) }) {
+                                        Image(nsImage: icon).resizable().frame(width: 18, height: 18)
+                                    }
+                                    Text(AppName.of(b))
+                                    if AppProfiles.builtin[b] != nil {
+                                        Label(L("预置"), systemImage: "checkmark.seal.fill")
+                                            .font(.caption).foregroundStyle(.green)
+                                            .labelStyle(.iconOnly)
+                                            .help(L("有内置的快捷键预置"))
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption).foregroundStyle(.tertiary)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            Button {
+                                store.config.targetApps.removeAll { $0 == b }
+                            } label: { Image(systemName: "minus.circle") }
+                                .buttonStyle(.borderless)
+                        }
+                    }
+                }
+                .frame(height: 220)
+
+                let sug = AppProfiles.suggestions(
+                    installed: { NSWorkspace.shared
+                        .urlForApplication(withBundleIdentifier: $0) != nil },
+                    whitelist: store.config.targetApps)
+                if !sug.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(L("这些已装的 app 有现成的快捷键预置，点一下加进来："))
+                            .font(.caption).foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            ForEach(sug, id: \.self) { b in
+                                Button {
+                                    store.config.targetApps.append(b)
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        if let icon = NSWorkspace.shared
+                                            .urlForApplication(withBundleIdentifier: b)
+                                            .map({ NSWorkspace.shared.icon(forFile: $0.path) }) {
+                                            Image(nsImage: icon).resizable()
+                                                .frame(width: 16, height: 16)
+                                        }
+                                        Text(AppName.of(b)).font(.callout)
+                                    }
+                                }
+                            }
+                            Spacer()
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+
+                HStack {
+                    TextField(L("bundle ID，例如 md.obsidian"), text: $newApp)
+                    Button(L("添加")) {
+                        let t = newApp.trimmingCharacters(in: .whitespaces)
+                        if !t.isEmpty && !store.config.targetApps.contains(t) {
+                            store.config.targetApps.append(t)
+                        }
+                        newApp = ""
+                    }
+                    Button(L("选 app…")) { pickApp() }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+        .sheet(item: Binding(
+            get: { editing.map { AppBox(id: $0) } },
+            set: { editing = $0?.id })) { box in
+            ProfilesView(app: box.id) { editing = nil }
+        }
+    }
+
+    private func pickApp() {
+        let p = NSOpenPanel()
+        p.allowedContentTypes = [.application]
+        p.directoryURL = URL(fileURLWithPath: "/Applications")
+        guard p.runModal() == .OK, let url = p.url,
+              let b = Bundle(url: url)?.bundleIdentifier else { return }
+        if !store.config.targetApps.contains(b) { store.config.targetApps.append(b) }
     }
 }
 
@@ -33,7 +186,6 @@ struct SettingsView: View {
 
 struct GeneralView: View {
     @ObservedObject var store = ConfigStore.shared
-    @State private var newApp = ""
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var hasAX = KeySynth.hasAccessibility
 
@@ -88,78 +240,6 @@ struct GeneralView: View {
                     .help(L("关掉就只留一个手柄图标，电量仍可在菜单里和设置页看到。"))
             }
 
-            Section(L("生效的 app")) {
-                Toggle(L("只在下列 app 里响应通用按键"), isOn: $store.config.restrictToTargets)
-                Text(L("whitelistHint"))
-                    .font(.subheadline).foregroundStyle(.secondary)
-
-                List {
-                    ForEach(store.config.targetApps, id: \.self) { b in
-                        HStack(spacing: 8) {
-                            if let icon = NSWorkspace.shared
-                                .urlForApplication(withBundleIdentifier: b)
-                                .map({ NSWorkspace.shared.icon(forFile: $0.path) }) {
-                                Image(nsImage: icon).resizable().frame(width: 18, height: 18)
-                            }
-                            Text(AppName.of(b))
-                            if AppProfiles.builtin[b] != nil {
-                                Label(L("预置"), systemImage: "checkmark.seal.fill")
-                                    .font(.caption).foregroundStyle(.green)
-                                    .labelStyle(.iconOnly)
-                                    .help(L("有内置的快捷键预置"))
-                            }
-                            Spacer()
-                            Button {
-                                store.config.targetApps.removeAll { $0 == b }
-                            } label: { Image(systemName: "minus.circle") }
-                                .buttonStyle(.borderless)
-                        }
-                    }
-                }
-                .frame(height: 150)
-
-                let sug = AppProfiles.suggestions(
-                    installed: { NSWorkspace.shared
-                        .urlForApplication(withBundleIdentifier: $0) != nil },
-                    whitelist: store.config.targetApps)
-                if !sug.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(L("这些已装的 app 有现成的快捷键预置，点一下加进来："))
-                            .font(.caption).foregroundStyle(.secondary)
-                        HStack(spacing: 8) {
-                            ForEach(sug, id: \.self) { b in
-                                Button {
-                                    store.config.targetApps.append(b)
-                                } label: {
-                                    HStack(spacing: 5) {
-                                        if let icon = NSWorkspace.shared
-                                            .urlForApplication(withBundleIdentifier: b)
-                                            .map({ NSWorkspace.shared.icon(forFile: $0.path) }) {
-                                            Image(nsImage: icon).resizable()
-                                                .frame(width: 16, height: 16)
-                                        }
-                                        Text(AppName.of(b)).font(.callout)
-                                    }
-                                }
-                            }
-                            Spacer()
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-
-                HStack {
-                    TextField(L("bundle ID，例如 md.obsidian"), text: $newApp)
-                    Button(L("添加")) {
-                        let t = newApp.trimmingCharacters(in: .whitespaces)
-                        if !t.isEmpty && !store.config.targetApps.contains(t) {
-                            store.config.targetApps.append(t)
-                        }
-                        newApp = ""
-                    }
-                    Button(L("选 app…")) { pickApp() }
-                }
-            }
         }
         .formStyle(.grouped)
         .padding()
@@ -174,14 +254,6 @@ struct GeneralView: View {
         }
     }
 
-    private func pickApp() {
-        let p = NSOpenPanel()
-        p.allowedContentTypes = [.application]
-        p.directoryURL = URL(fileURLWithPath: "/Applications")
-        guard p.runModal() == .OK, let url = p.url,
-              let b = Bundle(url: url)?.bundleIdentifier else { return }
-        if !store.config.targetApps.contains(b) { store.config.targetApps.append(b) }
-    }
 }
 
 // MARK: - 语音
@@ -380,11 +452,21 @@ struct RemoteView: View {
             Section(L("四角直达键")) {
                 Text(L("对应手机遥控界面圆盘四周的四个 app 图标"))
                     .font(.caption).foregroundStyle(.secondary)
-                Grid(horizontalSpacing: 12, verticalSpacing: 8) {
-                    GridRow { cornerPicker(0); cornerPicker(1) }
-                    GridRow { cornerPicker(2); cornerPicker(3) }
+                // 四角只能从白名单里选 —— 名单空着的话四个下拉全是空的,
+                // 而且从这页完全看不出该去哪加, 必须给出口
+                if store.config.targetApps.isEmpty {
+                    HStack {
+                        Text(L("这里从「App」页的列表里选——列表还是空的"))
+                            .font(.subheadline).foregroundStyle(.secondary)
+                        Button(L("去 App 页")) { SettingsNav.shared.tab = .apps }
+                    }
+                } else {
+                    Grid(horizontalSpacing: 12, verticalSpacing: 8) {
+                        GridRow { cornerPicker(0); cornerPicker(1) }
+                        GridRow { cornerPicker(2); cornerPicker(3) }
+                    }
+                    .padding(.vertical, 4)
                 }
-                .padding(.vertical, 4)
             }
 
             Section {

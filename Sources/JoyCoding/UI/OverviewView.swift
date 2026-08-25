@@ -6,6 +6,8 @@ private struct IDBox: Identifiable { let id: String }
 /// 总览: 行=按键, 列=app。一眼看出某颗键在某个 app 里是什么。
 /// 继承基础层的显示为浅色 ↳, 被覆盖的正常显示。
 struct OverviewView: View {
+    /// 图形/表格切换 —— 壳(ControllerView)持有
+    @Binding var mode: ControllerMode
     @ObservedObject var store = ConfigStore.shared
     @ObservedObject var hid = HIDInput.shared
     @State private var editing: String?
@@ -38,6 +40,8 @@ struct OverviewView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
+                ControllerModePicker(mode: $mode)
+                Divider().frame(height: 16)
                 Text(device.map { L("%@ · 全部映射", $0.name) } ?? L("没有手柄"))
                     .font(.title3.weight(.semibold))
                 Spacer()

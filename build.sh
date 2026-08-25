@@ -83,10 +83,22 @@ CHK
 
 echo "▸ 检查翻译覆盖率"
 python3 - <<'PYEOF'
-import re, glob, sys
+import re, glob, sys, collections
+src = open('Sources/JoyCoding/Translations.swift', encoding='utf-8').read()
+
+# 重复 key 是**运行期陷阱**: 编译照过, 启动即 SIGTRAP
+# ("Dictionary literal contains duplicate keys")。0824 就这么发过一个
+# 启动即崩的本地构建 —— 这道检查必须在覆盖率之前。
+i_zh, i_en = src.index('static let zh'), src.index('static let en')
+for name, part in [('zh', src[i_zh:i_en]), ('en', src[i_en:])]:
+    keys = re.findall(r'"((?:[^"\\]|\\.)*)"\s*:', part)
+    dup = [k for k, c in collections.Counter(keys).items() if c > 1]
+    if dup:
+        print(f"  ❌ {name} 表有重复 key(启动会直接崩): {dup}")
+        sys.exit(1)
+
 # 条目可能一行写好几个, 不能只匹配行首
-known = set(re.findall(r'"((?:[^"\\]|\\.)*)"\s*:\s*"',
-            open('Sources/JoyCoding/Translations.swift', encoding='utf-8').read()))
+known = set(re.findall(r'"((?:[^"\\]|\\.)*)"\s*:\s*"', src))
 miss = []
 for f in glob.glob('Sources/JoyCoding/**/*.swift', recursive=True):
     if f.endswith('Translations.swift'): continue

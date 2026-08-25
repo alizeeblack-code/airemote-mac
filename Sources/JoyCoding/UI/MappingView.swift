@@ -2,6 +2,8 @@ import SwiftUI
 import AppKit
 
 struct MappingView: View {
+    /// 图形/表格切换 —— 壳(ControllerView)持有, 两个视图的顶栏各放一个切换器
+    @Binding var mode: ControllerMode
     @ObservedObject var store = ConfigStore.shared
     @ObservedObject var hid = HIDInput.shared
     @ObservedObject var batt = JoyConBattery.shared
@@ -87,6 +89,8 @@ struct MappingView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
+            ControllerModePicker(mode: $mode)
+            Divider().frame(height: 16)
             Image(systemName: "gamecontroller.fill").foregroundStyle(.secondary)
             if hid.devices.isEmpty {
                 Text(L("未连接手柄")).foregroundStyle(.secondary)

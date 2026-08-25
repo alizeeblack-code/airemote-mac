@@ -59,7 +59,7 @@ App key profile    Claude Code : ⌃⇥            ← only this layer knows sho
 That split matters because **most people do not know their app's shortcuts** —
 ChatGPT focuses its composer with `⇧⎋`, something Claude Code has no shortcut
 for at all. So JoyCoding ships profiles for common apps, and you can record any
-shortcut yourself from **Overview → click an app column**.
+shortcut yourself from the **Apps page → click a row**.
 
 On top of that, a button can be **overridden per app**: `Y` is backspace
 everywhere, but *Back* in Chrome, because a browser has no text to delete.
@@ -68,7 +68,7 @@ everywhere, but *Back* in Chrome, because a browser has no text to delete.
 <img src="docs/images/en/overview.png" width="760" alt="Overview — every button across every app">
 </p>
 <p align="center"><sub>
-<b>Overview</b> lays the two layers side by side: the semantic action on the left,
+<b>The table view</b> (Settings → Controller → Table) lays the two layers side by side: the semantic action on the left,
 what each app turns it into across the columns. Greyed <code>↳</code> means
 "inherits the base layer"; bold means this app overrides it.
 </sub></p>
@@ -77,7 +77,7 @@ what each app turns it into across the columns. Greyed <code>↳</code> means
 <img src="docs/images/en/profile.png" width="620" alt="App key profile">
 </p>
 <p align="center"><sub>
-Click a column header to edit that app's profile. <b>Record</b> captures a real
+Click a row on the Apps page (or a column header in the table) to edit that app's profile. <b>Record</b> captures a real
 keystroke; leaving a row empty means the app has no such shortcut and the button
 stays inert there.
 </sub></p>

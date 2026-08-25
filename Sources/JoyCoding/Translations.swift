@@ -6,6 +6,8 @@ import Foundation
 enum Translations {
     /// 少数长说明用短 key（拼接的多行文案不适合当 key）, 中文版在这里
     static let zh: [String: String] = [
+        // 标签页名。中文界面也叫 "App" —— 但它是 ASCII, 必须进 zh 表
+        "App": "App",
         "whitelistHint": "关掉的话所有 app 都生效。不建议——Finder 里回车是重命名，"
             + "对话框里回车是确定，手柄放桌上碰一下就可能出事。\n"
             + "语音和切换 app 不受此限制，任何地方都能用。",
@@ -136,6 +138,14 @@ enum Translations {
         "用手机相机扫码，或在浏览器打开：": "Scan with your phone camera, or open in a browser:",
         "对应手机遥控界面圆盘四周的四个 app 图标":
             "The four app icons around the D-pad on the phone remote",
+        // 设置页信息架构 0824 重组
+        "图形": "Visual", "表格": "Table",
+        "语音听写": "Dictation", "App": "Apps",
+        "点某一行，编辑这个 app 里各动作发什么快捷键":
+            "Click a row to edit which shortcut each action sends in that app",
+        "这里从「App」页的列表里选——列表还是空的":
+            "Corners pick from the Apps page's list — which is still empty",
+        "去 App 页": "Open Apps",
         // 按键映射页: 一个手柄都没连时的引导
         "在系统设置里和手柄蓝牙配对": "Pair your controller over Bluetooth in System Settings",
         "打开蓝牙设置": "Open Bluetooth settings",

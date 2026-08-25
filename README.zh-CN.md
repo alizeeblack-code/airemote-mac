@@ -58,7 +58,7 @@ app 键位档案   Claude Code ：⌃⇥          ← 只有这层需要知道�
 分开的意义在于：**大部分人并不知道自己那个 app 的快捷键**。
 ChatGPT 聚焦输入框是 `⇧⎋`，而 Claude Code 压根没有这个快捷键。
 所以 JoyCoding 内置了常见 app 的档案，你也可以在
-**总览 → 点某个 app 的列头**里自己录制。
+**「App」页 → 点某一行**里自己录制。
 
 在这之上，按键还能**按 app 覆盖**：`Y` 在哪都是退格，但在 Chrome 里是「后退」，
 因为浏览器里根本没有文字可删。
@@ -67,7 +67,7 @@ ChatGPT 聚焦输入框是 `⇧⎋`，而 Claude Code 压根没有这个快捷�
 <img src="docs/images/zh/overview.png" width="760" alt="总览 —— 每个按键在每个 app 里的落点">
 </p>
 <p align="center"><sub>
-<b>总览</b>把两层摊开并排看：左边是语义动作，右边各列是它在每个 app 里变成了什么。
+<b>表格视图</b>（设置 → 手柄 → 表格）把两层摊开并排看：左边是语义动作，右边各列是它在每个 app 里变成了什么。
 灰色 <code>↳</code> 表示「沿用基础层」，加粗表示这个 app 覆盖了它。
 </sub></p>
 
@@ -75,7 +75,7 @@ ChatGPT 聚焦输入框是 `⇧⎋`，而 Claude Code 压根没有这个快捷�
 <img src="docs/images/zh/profile.png" width="620" alt="app 键位档案">
 </p>
 <p align="center"><sub>
-点列头就能编辑那个 app 的档案。<b>录制</b>直接捕获真实按键；某行留空表示这个 app
+在「App」页点某一行（或表格里点列头）就能编辑那个 app 的档案。<b>录制</b>直接捕获真实按键；某行留空表示这个 app
 没有对应快捷键，按下去不会有反应。
 </sub></p>
 
