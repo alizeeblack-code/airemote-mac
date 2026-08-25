@@ -125,8 +125,12 @@ enum Actions {
                   group: L("会话"), repeatable: true) { send("sessionPrev") },
         ActionDef("sessionNext", L("下一个会话"), L("Session / 聊天 / 标签 / 窗口，看 app"),
                   group: L("会话"), repeatable: true) { send("sessionNext") },
-        ActionDef("wechatNextUnread", L("下一个未读会话"), L("微信 · Cmd+Opt+↓"),
-                  group: L("会话"), onlyIn: BundleID.wechat) {
+        // ID 保留 wechat 前缀纯粹为了**不让老用户的绑定失效**(和 legacyFocusID
+        // 同一个理由), 语义上它早就不只是微信了 —— Slack 也要这个动作。
+        // 去掉 onlyIn 之后, 没有对应快捷键的 app 会由档案系统自动置灰成 "—",
+        // 不需要在这里写死限定哪个 app。
+        ActionDef("wechatNextUnread", L("下一个未读会话"), L("聊天 app · 跳到下一个未读"),
+                  group: L("会话")) {
             send("wechatNextUnread")
         },
         ActionDef("windowNext", L("下一个窗口"), L("同一个 app 的窗口间切换"), group: L("会话")) {

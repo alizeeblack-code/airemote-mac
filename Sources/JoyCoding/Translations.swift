@@ -141,6 +141,7 @@ enum Translations {
         "按一下手柄，这里会显示是哪颗键": "Press a button — it shows up here",
         "点一下改这个动作": "Click to change this action",
         "恢复继承基础层": "Back to inheriting Base",
+        "聊天 app · 跳到下一个未读": "Chat apps · jump to the next unread",
         "未绑定": "Not bound",
         // 表格视图 0825 重做(左侧选层 + 三列)
         "肩键与扳机": "Shoulders & Triggers",

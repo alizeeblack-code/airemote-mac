@@ -39,8 +39,8 @@ None of that needs a keyboard. JoyCoding maps that loop onto a controller:
 - **Phone remote** over your LAN — pair once with a 6-digit code
 - **Battery level** for Nintendo controllers (macOS does not expose this; see [docs](docs/battery.md))
 - Live button highlighting while you map, so you never guess a button number
-- **Key profiles for 9 apps out of the box** — Claude Code, ChatGPT, Cursor,
-  VS Code, Ghostty, iTerm2, Terminal, Chrome, WeChat
+- **Key profiles for 10 apps out of the box** — Claude Code, ChatGPT, Cursor,
+  VS Code, Ghostty, iTerm2, Terminal, Chrome, Slack, WeChat
 - Ships with sensible defaults — plug in a controller and it just works
 
 ## Two layers, and why

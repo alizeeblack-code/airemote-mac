@@ -38,8 +38,8 @@
 - **手机遥控**走局域网，6 位配对码只输一次
 - 任天堂手柄的**电量显示**（macOS 完全不暴露这个，做法见 [文档](docs/battery.md)）
 - 配置时按键**实时点亮**，不用猜编号
-- **9 个 app 的键位预置开箱即用** —— Claude Code、ChatGPT、Cursor、
-  VS Code、Ghostty、iTerm2、Terminal、Chrome、微信
+- **10 个 app 的键位预置开箱即用** —— Claude Code、ChatGPT、Cursor、
+  VS Code、Ghostty、iTerm2、Terminal、Chrome、Slack、微信
 - 内置默认配置，插上手柄就能用
 
 ## 两层设计，以及为什么

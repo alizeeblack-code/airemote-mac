@@ -107,6 +107,19 @@ enum AppProfiles {
             "wechatNextUnread": .init("cmd+alt+down"),
             "newSession":       .init("cmd+n"),
         ],
+        // ⚠️ **未实测**。这个仓库里其它档案的键都是从 app 菜单栏读出来的,
+        // 这份不是 —— 写它的时候本机没装 Slack, 下面是官方文档里的常用键。
+        // 装上 Slack 之后请对着菜单栏核一遍再把这条注释删掉。
+        BundleID.slack: [
+            "sessionPrev":      .init("alt+up"),        // 上一个频道
+            "sessionNext":      .init("alt+down"),      // 下一个频道
+            "wechatNextUnread": .init("alt+shift+down"),// 下一个未读(ID 见 Actions)
+            "newSession":       .init("cmd+n"),         // 新消息
+            "closeTab":         .init("cmd+w"),
+            "windowNext":       .init("cmd+`"),
+            // focusInput 故意不配: Slack 没有公开的"聚焦输入框"快捷键,
+            // 猜一个错的比不配更糟(按下去会触发别的功能)。
+        ],
         BundleID.chrome: [
             "sessionPrev": .init("ctrl+shift+tab"),
             "sessionNext": .init("ctrl+tab"),
@@ -124,9 +137,9 @@ enum AppProfiles {
         // 所以之前那份档案永远不会命中, 也永远不会出现在推荐里。
         //
         // 下面标「菜单」的都是从 app 自己的菜单栏读出来的实测值。
-        "com.openai.codex": openAI,
+        BundleID.chatgpt: openAI,
         "com.openai.chat":  openAI,          // 留给旧版本
-        "com.todesktop.230313mzl4w4u92": [          // Cursor
+        BundleID.cursor: [                          // Cursor
             "sessionPrev": .init("cmd+shift+["),
             "sessionNext": .init("cmd+shift+]"),
             "newSession":  .init("cmd+n"),

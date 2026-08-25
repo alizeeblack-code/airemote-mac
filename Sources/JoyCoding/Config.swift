@@ -214,8 +214,8 @@ struct Config: Codable {
         httpToken         = v(.httpToken, "")
         httpInterface     = v(.httpInterface, "all")
         restrictToTargets = v(.restrictToTargets, true)
-        targetApps        = v(.targetApps, [BundleID.ghostty, BundleID.claude,
-                                            BundleID.wechat, BundleID.chrome])
+        targetApps        = v(.targetApps, [BundleID.claude, BundleID.cursor,
+                                            BundleID.slack, BundleID.chrome])
         pttStyle          = v(.pttStyle, "hold")
         pttKey            = v(.pttKey, "ctrl")
         pttMods           = v(.pttMods, [String]())
@@ -240,8 +240,23 @@ struct Config: Codable {
     /// 通用按键(回车/Esc/退格/翻页)只在这些 app 里生效, 防止在 Finder、
     /// 确认对话框里误触。语音和切 app 不受此限制。
     var restrictToTargets = true
+    /// 默认这四个。白名单是"通用键在哪些 app 里生效", 不是"支持哪些 app" ——
+    /// Ghostty、微信、VS Code、iTerm2 等都有内置档案, 在「App」页一键可加。
+    ///
+    /// 原来那四个是**按角色配的**: 终端(Ghostty)、AI(Claude)、聊天(微信)、
+    /// 浏览器(Chrome)。换欧美默认值时要保住这四个角色, 而不是逐个换品牌:
+    ///
+    ///   编码 Ghostty → Cursor   (AI 编码编辑器事实标准; Ghostty 是 2025 年才
+    ///                            1.0 的小众终端, 且那份档案其实是给 Codex CLI
+    ///                            用的 —— mode: shift+tab 是 Codex 的
+    ///                            Plan/Pair/Execute 循环, 和终端本身关系不大)
+    ///   聊天 微信    → Slack
+    ///   AI/浏览器    不变
+    ///
+    /// ChatGPT 也有内置档案, 但四个位置塞不下五个角色 —— 它退到「App」页的
+    /// 一键推荐里。白名单是"通用键在哪些 app 里生效", 不是"支持哪些 app"。
     var targetApps: [String] = [
-        BundleID.ghostty, BundleID.claude, BundleID.wechat, BundleID.chrome,
+        BundleID.claude, BundleID.cursor, BundleID.slack, BundleID.chrome,
     ]
 
     /// "hold"   = 按住录, 松开出字 (Typeless / VoiceInk)
@@ -304,6 +319,10 @@ enum AppName {
         case BundleID.ghostty: return "Ghostty"
         case BundleID.claude:  return "Claude Code"
         case BundleID.wechat:  return L("微信")
+        case BundleID.chatgpt: return "ChatGPT"
+        case BundleID.cursor:  return "Cursor"
+        // slackmacgap 这种 id 靠下面的推导会得出很难看的名字, 显式写死
+        case BundleID.slack:   return "Slack"
         case BundleID.chrome:  return "Chrome"
         default: break
         }
@@ -331,6 +350,12 @@ enum BundleID {
     static let claude  = "com.anthropic.claudefordesktop"
     static let wechat  = "com.tencent.xinWeChat"
     static let chrome  = "com.google.Chrome"
+    /// ChatGPT 和 Codex 现在是同一个 app —— /Applications/ChatGPT.app 的
+    /// bundle id 就是 com.openai.codex(签名 OpenAI OpCo)
+    static let chatgpt = "com.openai.codex"
+    /// Cursor 用 ToDesktop 打包, id 是这串不透明的东西
+    static let cursor  = "com.todesktop.230313mzl4w4u92"
+    static let slack   = "com.tinyspeck.slackmacgap"
 }
 
 // MARK: - 存取

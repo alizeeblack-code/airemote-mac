@@ -382,8 +382,11 @@ final class HTTPServer: ObservableObject {
     ///
     /// 动作 ID 也不再查写死的四条映射 —— 那会把用户新加的 app 静默丢掉。
     private func cfgApps() -> [(String, String, String)] {
+        // 手机屏窄, 给常见的几个配短名; 没列到的走 AppName.of
         let short = [BundleID.claude: "Claude", BundleID.ghostty: "Ghostty",
-                     BundleID.wechat: L("微信"),   BundleID.chrome: "Chrome"]
+                     BundleID.wechat: L("微信"),   BundleID.chrome: "Chrome",
+                     BundleID.chatgpt: "ChatGPT", BundleID.cursor: "Cursor",
+                     BundleID.slack: "Slack"]
         let cfg = ConfigStore.shared.config
         // 四角指定过就按用户的来, 没指定就用白名单本身的顺序
         let list = cfg.remoteCorners.isEmpty ? cfg.targetApps : cfg.remoteCorners

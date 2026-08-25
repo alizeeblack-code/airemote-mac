@@ -46,14 +46,14 @@ enum DefaultProfiles {
             3: "cancel",        // B
             4: "delete",        // Y
             5: "confirm",       // L   单手时左手也能发送
-            6: "focusGhostty",  // R
+            6: Actions.focusID(for: BundleID.cursor),  // R
             7: "ptt",           // ZL  按住说话
             8: "switchApp",     // ZR
             9: "focusInput",    // −
             10: "modelMenu",    // +
             11: "cancel",       // 左摇杆按下
             12: "sideChat",     // 右摇杆按下
-            14: "focusWeChat",  // 截图键
+            14: "newSession",    // 截图键
             // 13 = Home 故意留空: macOS 原生接管 Pro 手柄, 这个键被系统
             // 截去开游戏覆盖层, 绑什么都不会生效
         ])
@@ -76,14 +76,14 @@ enum DefaultProfiles {
             4: "clearLine",     // △
             1: "delete",        // □
             5: "confirm",       // L1
-            6: "focusGhostty",  // R1
+            6: Actions.focusID(for: BundleID.cursor),  // R1
             7: "ptt",           // L2
             8: "switchApp",     // R2
             9: "focusInput",    // Create / Share
             10: "modelMenu",    // Options
             11: "cancel",       // L3
             12: "sideChat",     // R3
-            14: "focusWeChat",  // 触摸板按下
+            14: "newSession",    // 触摸板按下
             // 13 = PS 键留空, 多半和 Pro 的 Home 一样被系统截走
         ])
         p.sticks = ["hat": dpad, "right": rightStick]
@@ -99,8 +99,8 @@ enum DefaultProfiles {
         var p = DeviceProfile(vendorID: 0x057E, productID: 0x2007, name: name)
         p.buttons = b([
             1: "confirm", 2: "clearLine", 3: "cancel", 4: "delete",
-            5: "focusClaude", 6: "focusGhostty",
-            10: "focusInput", 12: "modelMenu", 13: "focusWeChat",
+            5: "focusClaude", 6: Actions.focusID(for: BundleID.cursor),
+            10: "focusInput", 12: "modelMenu", 13: "newSession",
             15: "ptt", 16: "switchApp",
         ])
         // Chrome 里 X/Y/加号 本来的动作都是死键, 让给浏览器操作
