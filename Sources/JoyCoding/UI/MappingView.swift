@@ -8,7 +8,8 @@ struct MappingView: View {
     @ObservedObject var hid = HIDInput.shared
     @ObservedObject var batt = JoyConBattery.shared
 
-    @State private var selectedID: String?
+    /// 选中的手柄。壳(ControllerView)持有, 和表格视图共用一份
+    @Binding var selectedID: String?
     @State private var hot: Int?              // 鼠标悬停高亮的按键
     @State private var pressed: Int?          // 手柄上真按下的键, 实时点亮
     @State private var learningStick = false
@@ -82,7 +83,12 @@ struct MappingView: View {
             }
         }
         .frame(minWidth: 980, minHeight: 640)
-        .onAppear { selectedID = hid.devices.first?.id; watchPresses() }
+        .onAppear {
+            // 只在还没选过时兜底。selectedID 现在是壳持有的共享状态, 无条件
+            // 重置会把用户在表格页选的手柄冲掉(切回图形就跳回第一只)。
+            if selectedID == nil { selectedID = hid.devices.first?.id }
+            watchPresses()
+        }
         .onDisappear { stopWatching() }
         .onChange(of: hid.devices.map(\.id)) { _ in
             if selectedID == nil { selectedID = hid.devices.first?.id }

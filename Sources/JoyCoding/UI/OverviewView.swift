@@ -41,6 +41,8 @@ private enum AnchorGroup: Int, CaseIterable {
 struct OverviewView: View {
     /// 图形/表格切换 —— 壳(ControllerView)持有
     @Binding var mode: ControllerMode
+    /// 选中的手柄。和图形视图共用一份 —— 在一边切了手柄, 切到另一边还是它
+    @Binding var selectedID: String?
     @ObservedObject var store = ConfigStore.shared
     @ObservedObject var hid = HIDInput.shared
 
@@ -54,7 +56,9 @@ struct OverviewView: View {
     /// previewHandler 的认领凭据(见 HIDInput.previewOwner)
     @State private var watchToken = UUID()
 
-    private var device: ConnectedDevice? { hid.devices.first }
+    private var device: ConnectedDevice? {
+        hid.devices.first { $0.id == selectedID } ?? hid.devices.first
+    }
     private var profile: DeviceProfile? {
         guard let d = device else { return nil }
         return store.config.devices.first { $0.id == d.id }
@@ -134,8 +138,19 @@ struct OverviewView: View {
         HStack(spacing: 10) {
             ControllerModePicker(mode: $mode)
             Divider().frame(height: 16)
-            Text(device?.name ?? L("没有手柄"))
-                .font(.title3.weight(.semibold))
+            // 多只手柄时这里要能切 —— 图形页一直有这个下拉, 表格页漏了,
+            // 于是接两只手柄时表格永远只显示第一只
+            if hid.devices.count > 1 {
+                Picker("", selection: Binding(
+                    get: { selectedID ?? hid.devices.first?.id ?? "" },
+                    set: { selectedID = $0 })) {
+                    ForEach(hid.devices) { d in Text(d.name).tag(d.id) }
+                }
+                .labelsHidden().frame(maxWidth: 240)
+            } else {
+                Text(device?.name ?? L("没有手柄"))
+                    .font(.title3.weight(.semibold))
+            }
             if device != nil {
                 Circle().fill(.green).frame(width: 7, height: 7)
             }
@@ -184,9 +199,13 @@ struct OverviewView: View {
                            bound: Set((profile?.buttons ?? [:]).compactMap { Int($0.key) }),
                            highlighted: pressed,
                            liveDir: liveDir)
-                    // 宽度定死(侧栏 260 减去内边距), 高度按外观图比例算 ——
-                    // Joy-Con 瘦长、Pro 手柄扁宽, 写死高度会把其中一种压变形
-                    .frame(width: 228, height: 228 / art.aspect)
+                    // 等比装进 228×150 的盒子。**不能只定宽度** —— Joy-Con 的
+                    // aspect 是 0.355, 228 宽算出来 642pt 高, 直接把下面的层
+                    // 列表挤出屏幕。改成以高度为准、宽度不超上限:
+                    // Joy-Con 得到 53×150(细高, 本来就是这形状),
+                    // Pro/PS 得到 ~218×150 —— 两种都是 150 高, 列表位置不动。
+                    .frame(width: min(228, 150 * art.aspect),
+                           height: min(228, 150 * art.aspect) / art.aspect)
                     .padding(.vertical, 10)
                     .frame(maxWidth: .infinity)
                     .background(Color.primary.opacity(0.04),

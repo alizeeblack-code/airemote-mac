@@ -39,12 +39,16 @@ enum ControllerMode: String { case canvas, table }
 struct ControllerView: View {
     /// 窗口存续期间记住停在哪个视图; 不跨启动持久, 没这个必要
     @State private var mode: ControllerMode = .canvas
+    /// 选中的手柄放在壳里 —— 两个视图共用, 在一边切了手柄切到另一边还是它。
+    /// 以前它是 MappingView 的私有 @State, 表格视图压根没有这个概念, 永远
+    /// 只显示第一只手柄。
+    @State private var selectedID: String?
 
     var body: some View {
         if mode == .canvas {
-            MappingView(mode: $mode)
+            MappingView(mode: $mode, selectedID: $selectedID)
         } else {
-            OverviewView(mode: $mode)
+            OverviewView(mode: $mode, selectedID: $selectedID)
         }
     }
 }
