@@ -38,6 +38,27 @@ final class HTTPServer: ObservableObject {
             } else {
                 l = try NWListener(using: params, on: port)
             }
+            // Bonjour 广播 —— 让 iPhone 端不用手输 IP 就能找到这台 Mac。
+            //
+            // 顺带解决 iOS 那边一个更烦的问题: iOS 14+ 访问局域网要用户授权,
+            // 而**触发授权弹窗的那次请求必然失败**。手机端没有"提前申请"的 API,
+            // 只能靠真发一次本地网络操作把弹窗勾出来 —— 有了这个广播, 它就能在
+            // 「装 Mac 端」那一屏用一次 Bonjour 浏览把权限问完, 而不是等到用户
+            // 输完 6 位码、砸在配对那一下上。
+            //
+            // 只在监听全部网卡时广播。httpInterface == "selected" 是用户特意
+            // 把端口收窄到某个网段(典型是只对 Tailscale 开、不暴露给局域网),
+            // 这时候还往局域网上喊一嗓子"这里有台 JoyCoding"就违背他的本意了 ——
+            // 虽然喊了也连不上(端口没绑在那个网段), 但那是噪音。
+            //
+            // 广播本身不放权: 手机看到的只有机器名和端口, 要动这台 Mac 仍然得
+            // 输那 6 位配对码。端口本来就在那儿, 扫一下就能发现, Bonjour 只是
+            // 省掉手输地址。
+            if cfg.httpInterface != "selected" {
+                l.service = NWListener.Service(name: Host.current().localizedName
+                                                    ?? ProcessInfo.processInfo.hostName,
+                                              type: "_joycoding._tcp")
+            }
             l.newConnectionHandler = { [weak self] conn in self?.accept(conn) }
             l.stateUpdateHandler = { [weak self] state in
                 DispatchQueue.main.async {
