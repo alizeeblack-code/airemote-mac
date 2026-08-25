@@ -158,8 +158,9 @@ struct OverviewView: View {
     private var sidebar: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 2) {
+                deviceCard
                 Text(L("层")).font(.caption).foregroundStyle(.tertiary)
-                    .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 4)
+                    .padding(.horizontal, 10).padding(.top, 14).padding(.bottom, 4)
                 layerRow("", title: L("基础"), icon: nil)
                 ForEach(store.config.targetApps, id: \.self) { app in
                     layerRow(app, title: AppName.of(app), icon: appIcon(app))
@@ -167,7 +168,57 @@ struct OverviewView: View {
             }
             .padding(.horizontal, 8).padding(.bottom, 12)
         }
-        .frame(width: 208)
+        .frame(width: 260)
+    }
+
+    /// 手柄缩略图 + 当前按下那颗键是什么。
+    ///
+    /// 复用画布那套 DeviceBody(它本来就是独立 View), 传同一个 highlighted ——
+    /// 于是按一下手柄, 图上的键和表格里的行**同时亮**, 不用在两个视图之间
+    /// 来回对照才能认出这颗键叫什么。
+    @ViewBuilder
+    private var deviceCard: some View {
+        if let art {
+            VStack(alignment: .leading, spacing: 8) {
+                DeviceBody(art: art,
+                           bound: Set((profile?.buttons ?? [:]).compactMap { Int($0.key) }),
+                           highlighted: pressed,
+                           liveDir: liveDir)
+                    // 宽度定死(侧栏 260 减去内边距), 高度按外观图比例算 ——
+                    // Joy-Con 瘦长、Pro 手柄扁宽, 写死高度会把其中一种压变形
+                    .frame(width: 228, height: 228 / art.aspect)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.primary.opacity(0.04),
+                                in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                // 按下时说明这颗键是什么。没按时留一行占位, 否则整个侧栏会
+                // 随按键上下跳。
+                HStack(spacing: 6) {
+                    if let id = pressed,
+                       let a = art.anchors.first(where: { $0.id == id }) {
+                        Text(a.label)
+                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        Text(currentAction(id).map(name) ?? L("未绑定"))
+                            .font(.subheadline).foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    } else {
+                        Text(L("按一下手柄，这里会显示是哪颗键"))
+                            .font(.caption).foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                }
+                .frame(height: 18)
+                .padding(.horizontal, 2)
+            }
+            .padding(.top, 10)
+        }
+    }
+
+    /// 某颗键在当前层的单击动作(含继承)
+    private func currentAction(_ id: Int) -> String? {
+        layer.isEmpty ? profile?.buttons[String(id)]?.tap
+                      : profile?.binding(button: id, app: layer)?.tap
     }
 
     private func layerRow(_ id: String, title: String, icon: NSImage?) -> some View {

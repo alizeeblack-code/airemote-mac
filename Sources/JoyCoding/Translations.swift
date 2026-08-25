@@ -138,6 +138,8 @@ enum Translations {
         "用手机相机扫码，或在浏览器打开：": "Scan with your phone camera, or open in a browser:",
         "对应手机遥控界面圆盘四周的四个 app 图标":
             "The four app icons around the D-pad on the phone remote",
+        "按一下手柄，这里会显示是哪颗键": "Press a button — it shows up here",
+        "未绑定": "Not bound",
         // 表格视图 0825 重做(左侧选层 + 三列)
         "肩键与扳机": "Shoulders & Triggers",
         "面键": "Face Buttons",
