@@ -42,7 +42,7 @@ enum DefaultProfiles {
         var p = DeviceProfile(vendorID: 0x057E, productID: 0x2009, name: name)
         p.buttons = b([
             1: "confirm",       // A
-            2: "clearLine",     // X
+            2: "deleteToLineStart",  // X  (长按 = 清空整个输入, 见下)
             3: "cancel",        // B
             4: "delete",        // Y
             5: "confirm",       // L   单手时左手也能发送
@@ -58,6 +58,9 @@ enum DefaultProfiles {
             // 截去开游戏覆盖层, 绑什么都不会生效
         ])
         p.sticks = ["hat": dpad, "right": rightStick]
+        // X 点一下删到行首, 按住清空整个输入 —— 长按做更彻底的事。
+        // 两个动作都不连发, 所以占掉长按位不会牺牲什么。
+        p.buttons["2"]?.long = "clearLine"
         p.stickModes = ["right": "mouse"]   // 右摇杆默认推鼠标
         p.overrides = [BundleID.chrome: AppOverride(
             buttons: b([2: "reload", 4: "navBack"]))]
@@ -87,6 +90,9 @@ enum DefaultProfiles {
             // 13 = PS 键留空, 多半和 Pro 的 Home 一样被系统截走
         ])
         p.sticks = ["hat": dpad, "right": rightStick]
+        // X 点一下删到行首, 按住清空整个输入 —— 长按做更彻底的事。
+        // 两个动作都不连发, 所以占掉长按位不会牺牲什么。
+        p.buttons["2"]?.long = "clearLine"
         p.stickModes = ["right": "mouse"]   // 右摇杆默认推鼠标
         p.overrides = [BundleID.chrome: AppOverride(
             buttons: b([4: "reload", 1: "navBack"]))]
@@ -98,11 +104,14 @@ enum DefaultProfiles {
     private static func joyconRight(_ name: String) -> DeviceProfile {
         var p = DeviceProfile(vendorID: 0x057E, productID: 0x2007, name: name)
         p.buttons = b([
-            1: "confirm", 2: "clearLine", 3: "cancel", 4: "delete",
+            1: "confirm", 2: "deleteToLineStart", 3: "cancel", 4: "delete",
             5: "focusClaude", 6: Actions.focusID(for: BundleID.cursor),
             10: "focusInput", 12: "modelMenu", 13: "newSession",
             15: "ptt", 16: "switchApp",
         ])
+        // X 点一下删到行首, 按住清空整个输入 —— 长按做更彻底的事。
+        // 两个动作都不连发, 所以占掉长按位不会牺牲什么。
+        p.buttons["2"]?.long = "clearLine"
         // Chrome 里 X/Y/加号 本来的动作都是死键, 让给浏览器操作
         p.overrides = [BundleID.chrome: AppOverride(
             buttons: b([2: "reload", 4: "navBack", 10: "closeTab"]))]
