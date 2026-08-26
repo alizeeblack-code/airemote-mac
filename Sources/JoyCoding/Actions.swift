@@ -79,6 +79,14 @@ enum Actions {
         ActionDef("delete", L("退格删除"), repeatable: true) {
             if ctx.inTarget() { key([], "delete") }
         },
+        // 和 clearLine 的区别: 这个只删**光标到行首**, 光标后面的内容和其它行
+        // 都留着; clearLine 是整个输入框清空。多行 prompt 里差别很大。
+        //
+        // 终端两者都是 ⌃U(readline 就这一个键), 输入框里才分得开。
+        ActionDef("deleteToLineStart", L("删除到行首"), L("终端是 Ctrl+U，输入框是 ⌘⌫")) {
+            guard ctx.inTarget() else { return }
+            send("deleteToLineStart")
+        },
         ActionDef("clearLine", L("清空当前输入"), L("终端是 Ctrl+U，输入框是全选再删")) {
             guard ctx.inTarget() else { return }
             if let spec = AppProfiles.key("clearLine", app: ctx.frontBundle),

@@ -323,6 +323,7 @@ enum AppName {
         case BundleID.cursor:  return "Cursor"
         // slackmacgap 这种 id 靠下面的推导会得出很难看的名字, 显式写死
         case BundleID.slack:   return "Slack"
+        case "com.microsoft.Word": return "Word"
         case BundleID.chrome:  return "Chrome"
         default: break
         }
