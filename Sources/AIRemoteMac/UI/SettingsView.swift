@@ -244,7 +244,7 @@ struct GeneralView: View {
                     if !hasAX {
                         Button(L("去授权")) { KeySynth.openAccessibilityPane() }
                     }
-                    Button(L("重启 JoyCoding")) { KeySynth.relaunch() }
+                    Button(L("重启 AIRemote for Mac")) { KeySynth.relaunch() }
                         .help(L("axGranted"))
                 }
                 // 已授权就不再占一行说明, 只在没授权时讲怎么做

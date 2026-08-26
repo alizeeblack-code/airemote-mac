@@ -27,7 +27,7 @@ func L(_ zh: String) -> String {
     if Lang.isChinese { return Translations.zh[zh] ?? zh }
     if let en = Translations.en[zh] { return en }
     #if DEBUG
-    NSLog("[JoyCoding] 未翻译: %@", zh)
+    NSLog("[AIRemote] 未翻译: %@", zh)
     #endif
     return zh
 }

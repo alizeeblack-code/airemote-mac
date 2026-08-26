@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 @main
-struct JoyCodingApp: App {
+struct AIRemoteMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @ObservedObject private var hid = HIDInput.shared
     @ObservedObject private var http = HTTPServer.shared
@@ -49,7 +49,7 @@ struct JoyCodingApp: App {
 
             Divider()
             Button(L("设置…")) { SettingsWindow.shared.show() }.keyboardShortcut(",")
-            Button(L("退出 JoyCoding")) { NSApp.terminate(nil) }.keyboardShortcut("q")
+            Button(L("退出 AIRemote for Mac")) { NSApp.terminate(nil) }.keyboardShortcut("q")
         } label: {
             MenuBarLabel()
         }
@@ -84,7 +84,7 @@ final class SettingsWindow {
             contentRect: NSRect(x: 0, y: 0, width: 1240, height: 820),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false)
-        w.title = L("JoyCoding 设置")
+        w.title = L("AIRemote for Mac 设置")
         w.contentView = NSHostingView(rootView: SettingsView())
         w.contentMinSize = NSSize(width: 1060, height: 700)
         w.center()

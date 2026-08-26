@@ -158,7 +158,7 @@ struct MappingView: View {
                     Label(L("辅助功能未授权"), systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange).font(.subheadline)
                 }
-                .help(L("勾选后必须重启 JoyCoding 才生效"))
+                .help(L("勾选后必须重启 AIRemote for Mac 才生效"))
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)

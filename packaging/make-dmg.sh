@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# 把 JoyCoding.app 打成可拖拽安装的 DMG。
+# 把 AIRemote for Mac.app 打成可拖拽安装的 DMG。
 #
 #   packaging/make-dmg.sh <app 路径> <输出 dmg 路径> <卷名>
 #

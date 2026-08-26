@@ -4,7 +4,7 @@ macOS **完全不暴露** Joy-Con 电量 —— `IOHIDDeviceGetProperty`、IOReg
 全库搜 `BatteryPercent`/`BatteryLevel`/`PercentRemaining`、
 `system_profiler SPBluetoothDataType` 全都查过，一条都没有。
 
-所以只能发任天堂的私有子命令。实现在 `Sources/JoyCoding/Battery.swift`。
+所以只能发任天堂的私有子命令。实现在 `Sources/AIRemoteMac/Battery.swift`。
 
 ## 做法
 

@@ -312,7 +312,7 @@ enum Actions {
         pttWatchdog?.invalidate()
         pttWatchdog = Timer.scheduledTimer(withTimeInterval: cfg.pttMaxHold, repeats: false) { _ in
             pttPost(down: false)
-            NSLog("[JoyCoding] PTT 超过 \(cfg.pttMaxHold)s, 已强制松开")
+            NSLog("[AIRemote] PTT 超过 \(cfg.pttMaxHold)s, 已强制松开")
         }
     }
 

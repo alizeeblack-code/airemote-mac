@@ -22,7 +22,7 @@ enum LaunchAtLogin {
             }
             return true
         } catch {
-            NSLog("[JoyCoding] 开机自启设置失败: \(error.localizedDescription)")
+            NSLog("[AIRemote] 开机自启设置失败: \(error.localizedDescription)")
             return false
         }
     }

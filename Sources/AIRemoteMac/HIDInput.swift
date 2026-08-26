@@ -108,7 +108,7 @@ final class HIDInput: ObservableObject {
         p.productID = d.productID       // PS 系列产品号不止一个, 用实际连上的
         store.config.devices.append(p)
         store.save()
-        NSLog("[JoyCoding] 为 \(d.name) 套用了内置默认配置")
+        NSLog("[AIRemote] 为 \(d.name) 套用了内置默认配置")
     }
 
     private func refreshDevices() {

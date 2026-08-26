@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="icon/AppIcon.png" width="120" alt="JoyCoding">
+<img src="icon/AppIcon.png" width="120" alt="AIRemote for Mac">
 
-# JoyCoding
+# AIRemote for Mac
 
 **Turn a game controller — or your phone — into a coding remote for macOS.**
 
@@ -23,7 +23,7 @@ Or leave the controller in a drawer and use your phone.
 ## Why
 
 Working with an agent is mostly a loop of **read → say something → approve → interrupt**.
-None of that needs a keyboard. JoyCoding maps that loop onto a controller:
+None of that needs a keyboard. AIRemote for Mac maps that loop onto a controller:
 
 - **Hold a trigger and speak** — push-to-talk into any dictation tool
 - **One button to send**, one to interrupt, one to scroll
@@ -58,7 +58,7 @@ App key profile    Claude Code : ⌃⇥            ← only this layer knows sho
 
 That split matters because **most people do not know their app's shortcuts** —
 ChatGPT focuses its composer with `⇧⎋`, something Claude Code has no shortcut
-for at all. So JoyCoding ships profiles for common apps, and you can record any
+for at all. So AIRemote for Mac ships profiles for common apps, and you can record any
 shortcut yourself from the **Apps page → click a row**.
 
 On top of that, a button can be **overridden per app**: `Y` is backspace
@@ -95,7 +95,7 @@ stays inert there.
 ## Install
 
 **Download** the notarized `.dmg` from [Releases](../../releases), open it and drag
-JoyCoding into Applications. Then launch it from Applications — it lives in the
+AIRemote for Mac into Applications. Then launch it from Applications — it lives in the
 menu bar.
 
 > A `.zip` is published too, for scripted installs. If you use it, move the app
@@ -115,8 +115,8 @@ cd joycoding && ./build.sh --no-notarize
 
 ## Getting started
 
-1. Open JoyCoding. Grant **Accessibility** in System Settings when asked, then
-   hit **Restart JoyCoding** in the app — macOS does not apply the grant to a
+1. Open AIRemote for Mac. Grant **Accessibility** in System Settings when asked, then
+   hit **Restart AIRemote for Mac** in the app — macOS does not apply the grant to a
    running process.
 2. Pair a controller over Bluetooth. Default mappings are applied automatically.
 3. For a Joy-Con, run **Learn stick directions** once, holding it the way you

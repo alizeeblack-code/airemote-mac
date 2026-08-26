@@ -91,7 +91,7 @@ final class JoyConBattery: ObservableObject {
         let r = IOHIDDeviceSetReport(device, kIOHIDReportTypeOutput,
                                      CFIndex(0x31), &d, d.count)
         if r != kIOReturnSuccess {
-            NSLog("[JoyCoding] DualSense 启用完整报告失败 0x%08X", r)
+            NSLog("[AIRemote] DualSense 启用完整报告失败 0x%08X", r)
         }
     }
 

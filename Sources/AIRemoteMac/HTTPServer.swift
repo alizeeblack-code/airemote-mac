@@ -41,6 +41,10 @@ final class HTTPServer: ObservableObject {
             }
             // Bonjour 广播 —— 让 iPhone 端不用手输 IP 就能找到这台 Mac。
             //
+            // ⚠️ 类型 0.7.0 从 _joycoding._tcp 改成了 _airemote._tcp。这是
+            // **协议的一部分**: 手机端 Info.plist 的 NSBonjourServices 必须
+            // 同步改, 否则两边互相看不见(而且是静默的 —— 只是"搜不到")。
+            //
             // 顺带解决 iOS 那边一个更烦的问题: iOS 14+ 访问局域网要用户授权,
             // 而**触发授权弹窗的那次请求必然失败**。手机端没有"提前申请"的 API,
             // 只能靠真发一次本地网络操作把弹窗勾出来 —— 有了这个广播, 它就能在
@@ -49,7 +53,7 @@ final class HTTPServer: ObservableObject {
             //
             // 只在监听全部网卡时广播。httpInterface == "selected" 是用户特意
             // 把端口收窄到某个网段(典型是只对 Tailscale 开、不暴露给局域网),
-            // 这时候还往局域网上喊一嗓子"这里有台 JoyCoding"就违背他的本意了 ——
+            // 这时候还往局域网上喊一嗓子"这里有台 AIRemote"就违背他的本意了 ——
             // 虽然喊了也连不上(端口没绑在那个网段), 但那是噪音。
             //
             // 广播本身不放权: 手机看到的只有机器名和端口, 要动这台 Mac 仍然得
@@ -58,7 +62,7 @@ final class HTTPServer: ObservableObject {
             if cfg.httpInterface != "selected" {
                 l.service = NWListener.Service(name: Host.current().localizedName
                                                     ?? ProcessInfo.processInfo.hostName,
-                                              type: "_joycoding._tcp")
+                                              type: "_airemote._tcp")
             }
             l.newConnectionHandler = { [weak self] conn in self?.accept(conn) }
             l.stateUpdateHandler = { [weak self] state in
@@ -85,7 +89,7 @@ final class HTTPServer: ObservableObject {
         watchdog?.invalidate()
         watchdog = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             guard let self, ConfigStore.shared.config.httpEnabled, !self.running else { return }
-            NSLog("[JoyCoding] HTTP 端口掉了, 重建中")
+            NSLog("[AIRemote] HTTP 端口掉了, 重建中")
             self.restart()
         }
     }
@@ -153,12 +157,16 @@ final class HTTPServer: ObservableObject {
         conn.send(content: out, completion: .contentProcessed { _ in conn.cancel() })
     }
 
-    /// 取 Cookie 里的 joycoding=<token>
+    /// 取 Cookie 里的 token。
+    ///
+    /// **两个名字都认**: 改名之后新配对写的是 airemote, 但已经配过对的手机
+    /// 浏览器里存的还是 joycoding —— 只认新名字的话它们会全部掉线, 要重新
+    /// 配对一遍。读兼容、写新名, 老 Cookie 过期(一年)后自然消失。
     private static func parseCookie(_ req: String) -> String? {
         for line in req.split(separator: "\r\n") where line.lowercased().hasPrefix("cookie:") {
             for kv in line.dropFirst(7).split(separator: ";") {
                 let p = kv.trimmingCharacters(in: .whitespaces).split(separator: "=", maxSplits: 1)
-                if p.count == 2, p[0] == "joycoding" { return String(p[1]) }
+                if p.count == 2, p[0] == "airemote" || p[0] == "joycoding" { return String(p[1]) }
             }
         }
         return nil
@@ -358,7 +366,7 @@ final class HTTPServer: ObservableObject {
         }
         pairFails = 0
         // 一年有效; 重新生成配对码会换掉 token, 老 Cookie 自然失效
-        let ck = "Set-Cookie: joycoding=\(cfg.httpToken); Max-Age=31536000; Path=/; SameSite=Lax\r\n"
+        let ck = "Set-Cookie: airemote=\(cfg.httpToken); Max-Age=31536000; Path=/; SameSite=Lax\r\n"
         return (Data("{\"ok\":true}".utf8), "application/json; charset=utf-8", 200, ck)
     }
 

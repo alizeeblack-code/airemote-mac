@@ -371,11 +371,22 @@ final class ConfigStore: ObservableObject {
     private let url: URL
 
     private init() {
-        let dir = FileManager.default
-            .homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/joycoding", isDirectory: true)
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let dir = home.appendingPathComponent(".config/airemote", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         url = dir.appendingPathComponent("config.json")
+
+        // 0.7.0 改名 JoyCoding → AIRemote for Mac 时配置目录也跟着换了。
+        // 老位置有、新位置没有 → 搬过去。**不搬的话老用户等于恢复出厂**:
+        // 按键映射、app 白名单、配对码全没了。
+        // 只搬一次(新位置一旦存在就不再看老的), 老目录留着不删 —— 万一搬错了
+        // 还能手工找回来。
+        let legacy = home.appendingPathComponent(".config/joycoding/config.json")
+        if !FileManager.default.fileExists(atPath: url.path),
+           FileManager.default.fileExists(atPath: legacy.path) {
+            try? FileManager.default.copyItem(at: legacy, to: url)
+            NSLog("[AIRemote] 已从 ~/.config/joycoding 迁移配置")
+        }
 
         if let d = try? Data(contentsOf: url),
            let c = try? JSONDecoder().decode(Config.self, from: d) {

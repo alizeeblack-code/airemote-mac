@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="icon/AppIcon.png" width="120" alt="JoyCoding">
+<img src="icon/AppIcon.png" width="120" alt="AIRemote for Mac">
 
-# JoyCoding
+# AIRemote for Mac
 
 **把游戏手柄——或者你的手机——变成 macOS 的编程遥控器。**
 
@@ -22,7 +22,7 @@
 ## 为什么做这个
 
 和 AI agent 协作，大部分时间是在一个循环里：**读 → 说一句 → 批准 → 打断**。
-这几件事都不需要键盘。JoyCoding 把这个循环搬到了手柄上：
+这几件事都不需要键盘。AIRemote for Mac 把这个循环搬到了手柄上：
 
 - **按住扳机说话** —— 对接任何听写工具的按住式热键
 - **一个键发送**，一个键打断，一个键翻页
@@ -57,7 +57,7 @@ app 键位档案   Claude Code ：⌃⇥          ← 只有这层需要知道�
 
 分开的意义在于：**大部分人并不知道自己那个 app 的快捷键**。
 ChatGPT 聚焦输入框是 `⇧⎋`，而 Claude Code 压根没有这个快捷键。
-所以 JoyCoding 内置了常见 app 的档案，你也可以在
+所以 AIRemote for Mac 内置了常见 app 的档案，你也可以在
 **「App」页 → 点某一行**里自己录制。
 
 在这之上，按键还能**按 app 覆盖**：`Y` 在哪都是退格，但在 Chrome 里是「后退」，
@@ -91,7 +91,7 @@ ChatGPT 聚焦输入框是 `⇧⎋`，而 Claude Code 压根没有这个快捷�
 
 ## 安装
 
-**下载**：从 [Releases](../../releases) 拿公证过的 `.dmg`，打开后把 JoyCoding 拖进
+**下载**：从 [Releases](../../releases) 拿公证过的 `.dmg`，打开后把 AIRemote for Mac 拖进
 「应用程序」，再从「应用程序」里启动——它常驻在菜单栏。
 
 > 同时也提供 `.zip`，方便脚本化安装。用 zip 的话请**先把 app 挪进「应用程序」再首次启动**：
@@ -108,8 +108,8 @@ cd joycoding && ./build.sh --no-notarize
 
 ## 快速上手
 
-1. 打开 JoyCoding，按提示在系统设置里授予**辅助功能**，然后点 app 里的
-   **「重启 JoyCoding」** —— macOS 对已运行的进程不会即时生效。
+1. 打开 AIRemote for Mac，按提示在系统设置里授予**辅助功能**，然后点 app 里的
+   **「重启 AIRemote for Mac」** —— macOS 对已运行的进程不会即时生效。
 2. 蓝牙连上手柄，默认配置自动套用。
 3. Joy-Con 需要跑一次**「学习摇杆方向」**，按你平时的握法推四个方向。
 

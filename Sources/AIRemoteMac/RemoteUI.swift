@@ -249,7 +249,7 @@ poll(); setInterval(poll,1500);
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
         <meta name="apple-mobile-web-app-capable" content="yes">
-        <title>JoyCoding \(L("配对"))</title>
+        <title>AIRemote for Mac \(L("配对"))</title>
         <style>\(css)
         #pairwrap{height:100%;display:flex;flex-direction:column;align-items:center;
                   justify-content:center;gap:20px;padding:30px}
@@ -263,8 +263,8 @@ poll(); setInterval(poll,1500);
         #msg{color:#ff453a;font-size:14px;min-height:20px}
         </style></head><body>
         <div id="pairwrap">
-          <h1>🎮 JoyCoding</h1>
-          <p>\(L("在 Mac 上打开 JoyCoding 设置 → 手机遥控"))<br>\(L("输入那里显示的 6 位配对码"))</p>
+          <h1>🎮 AIRemote for Mac</h1>
+          <p>\(L("在 Mac 上打开 AIRemote for Mac → 手机遥控"))<br>\(L("输入那里显示的 6 位配对码"))</p>
           <input id="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="······">
           <button id="go">\(L("pairBtn"))</button>
           <div id="msg"></div>
@@ -295,7 +295,7 @@ poll(); setInterval(poll,1500);
         <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="default">
-        <title>JoyCoding</title>
+        <title>AIRemote for Mac</title>
         <style>\(css)</style>
         </head><body>
         <div id="app">

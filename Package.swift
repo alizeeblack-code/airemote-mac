@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "JoyCoding",
+    name: "AIRemoteMac",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "JoyCoding",
-            path: "Sources/JoyCoding",
+            name: "AIRemoteMac",
+            path: "Sources/AIRemoteMac",
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]

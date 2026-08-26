@@ -10,14 +10,14 @@
 
 | 文件 | 给谁 |
 |---|---|
-| `build/JoyCoding-<版本>-universal.dmg` | 普通用户。README 主推这个 |
-| `build/JoyCoding-notarized.zip` | 脚本化安装（`curl` + `ditto`）、CI、不想挂载磁盘映像的人 |
+| `build/AIRemote-for-Mac-<版本>-universal.dmg` | 普通用户。README 主推这个 |
+| `build/AIRemote-for-Mac-notarized.zip` | 脚本化安装（`curl` + `ditto`）、CI、不想挂载磁盘映像的人 |
 
 两个都传到 GitHub Releases。
 
 ## 为什么要 DMG
 
-ZIP 的问题不在技术，在**默认行为**：Safari 下载后自动解压，`JoyCoding.app`
+ZIP 的问题不在技术，在**默认行为**：Safari 下载后自动解压，`AIRemote for Mac.app`
 就落在「下载」文件夹里，很多人直接从那儿双击运行。后果是
 
 - 「下载」被清理时 app 跟着没了
@@ -84,9 +84,9 @@ DMG——少了后半段，打开时照样弹「无法验证开发者」。
 排查时可以直接查：
 
 ```bash
-hdiutil attach build/JoyCoding-<版本>-universal.dmg -noautoopen
-strings -a /Volumes/JoyCoding/.DS_Store | grep bg.tiff   # 应有输出
-osascript -e 'tell application "Finder" to get bounds of window "JoyCoding"'
+hdiutil attach build/AIRemote-for-Mac-<版本>-universal.dmg -noautoopen
+strings -a /Volumes/AIRemote for Mac/.DS_Store | grep bg.tiff   # 应有输出
+osascript -e 'tell application "Finder" to get bounds of window "AIRemote for Mac"'
 ```
 
 （AppleScript 读不回 `background picture` 属性是正常的，它对新版 `icvp`
@@ -97,9 +97,9 @@ osascript -e 'tell application "Finder" to get bounds of window "JoyCoding"'
 
 ```bash
 gh release create v<版本> \
-  build/JoyCoding-<版本>-universal.dmg \
-  build/JoyCoding-notarized.zip \
-  --title "JoyCoding <版本>" --notes "..."
+  build/AIRemote-for-Mac-<版本>-universal.dmg \
+  build/AIRemote-for-Mac-notarized.zip \
+  --title "AIRemote for Mac <版本>" --notes "..."
 ```
 
 ⚠️ `mac/` 是**公开仓库**。DMG 背景图上的文字、发布说明里的内容都会公开可见，
