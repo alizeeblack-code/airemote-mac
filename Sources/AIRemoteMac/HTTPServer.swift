@@ -350,7 +350,54 @@ final class HTTPServer: ObservableObject {
         }
     }
 
+    /// 正在等用户点「允许」的请求。同一时刻只留一个 —— 连着弹好几个框
+    /// 谁都分不清在批准哪一台。
+    private var pendingApproval: (name: String, since: Date)?
+
+    /// 免输码配对: 手机发起 → Mac 上弹窗 → 点允许就直接给 token。
+    ///
+    /// ⚠️ **这不是"取消认证"**, 是把认证从"输码"换成"在 Mac 上点一下"。
+    /// 边界没变, 仍然要求对这台 Mac 有物理访问 —— 而这正是关键: 局域网
+    /// **不是**可信边界(家里有客人和智能设备, 办公室有几百人), 而这个端点的
+    /// 权限等同于键盘。任何"同一个 Wi-Fi 就放行"的方案都不能要。
+    private func handleApprovalRequest(_ name: String, cfg: Config) -> (Data, String, Int, String) {
+        // 手机每秒来问一次结果, 不能每次都弹新窗
+        if let p = pendingApproval, p.name == name, Date().timeIntervalSince(p.since) < 120 {
+            return txt("{\"ok\":false,\"pending\":true}", "application/json; charset=utf-8")
+        }
+        pendingApproval = (name, Date())
+
+        DispatchQueue.main.async { [weak self] in
+            let alert = NSAlert()
+            alert.messageText = L("允许「%@」控制这台 Mac？", name)
+            alert.informativeText = L("approveHint")
+            alert.addButton(withTitle: L("允许"))
+            alert.addButton(withTitle: L("拒绝"))
+            alert.alertStyle = .warning
+            // 菜单栏 app 平时不在前台, 不激活的话这个框会开在别的窗口后面,
+            // 用户根本看不到, 表现成"手机一直转圈"。
+            NSApp.activate(ignoringOtherApps: true)
+            let allowed = alert.runModal() == .alertFirstButtonReturn
+            self?.approved = allowed ? name : nil
+            self?.pendingApproval = nil
+        }
+        return txt("{\"ok\":false,\"pending\":true}", "application/json; charset=utf-8")
+    }
+
+    /// 已批准但还没被取走的设备名
+    private var approved: String?
+
     private func handlePair(_ comps: [String], cfg: Config) -> (Data, String, Int, String) {
+        // /pair/request/<设备名> —— 免输码那条路
+        if comps.count > 2, comps[1] == "request" {
+            let name = String(comps[2].removingPercentEncoding?.prefix(40) ?? "iPhone")
+            if approved == name {
+                approved = nil
+                let ck = "Set-Cookie: airemote=\(cfg.httpToken); Max-Age=31536000; Path=/; SameSite=Lax\r\n"
+                return (Data("{\"ok\":true}".utf8), "application/json; charset=utf-8", 200, ck)
+            }
+            return handleApprovalRequest(name, cfg: cfg)
+        }
         guard comps.count > 1, comps[0] == "pair" else {
             return txt(RemoteUI.pairPage(), "text/html; charset=utf-8")
         }

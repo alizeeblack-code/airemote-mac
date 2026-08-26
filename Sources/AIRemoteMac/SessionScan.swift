@@ -197,8 +197,8 @@ enum SessionScan {
     /// cwd 读不到时的兜底名。
     ///
     /// ⚠️ fallbackName 是 Claude 的项目目录名 —— 把路径里的 / 和 . 全换成了 -,
-    /// 比如 /Users/x/code/bidnova/BDFORMAL/.claude-worktrees/eager-wu-f16c2c
-    /// 编码成 -Users-x-code-bidnova-BDFORMAL--claude-worktrees-eager-wu-f16c2c,
+    /// 比如 /Users/x/code/myproj/Sub/.claude-worktrees/eager-wu-f16c2c
+    /// 编码成 -Users-x-code-myproj-Sub--claude-worktrees-eager-wu-f16c2c,
     /// 六十多个字符。之前直接把它当名字发出去, 手机端那排会话卡就被撑爆了。
     ///
     /// 编码不可逆(原路径里本来就含 - 的话没法还原), 所以不试图解码, 只取最后

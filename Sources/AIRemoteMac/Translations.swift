@@ -8,6 +8,8 @@ enum Translations {
     static let zh: [String: String] = [
         // 标签页名。中文界面也叫 "App" —— 但它是 ASCII, 必须进 zh 表
         "App": "App",
+        "approveHint": "它将能在这台 Mac 上打字、切换 app，和坐在键盘前一样。"
+            + "只允许你自己的设备。",
         "whitelistHint": "关掉的话所有 app 都生效。不建议——Finder 里回车是重命名，"
             + "对话框里回车是确定，手柄放桌上碰一下就可能出事。\n"
             + "语音和切换 app 不受此限制，任何地方都能用。",
@@ -164,6 +166,10 @@ enum Translations {
         "请求格式不对": "Malformed request",
         "列表内容不一致，请先在 Mac 上增删": "That list doesn't match — add or remove apps on the Mac first",
         "手机端调整了 app 顺序": "Your phone reordered the app list",
+        "允许「%@」控制这台 Mac？": "Let “%@” control this Mac?",
+        "允许": "Allow", "拒绝": "Don't Allow",
+        "approveHint": "It will be able to type on this Mac and switch between apps, "
+            + "the same as sitting at the keyboard. Only allow devices you own.",
         "删除到行首": "Delete to line start",
         "终端是 Ctrl+U，输入框是 ⌘⌫": "Ctrl+U in terminals, ⌘⌫ in text fields",
         // 按键映射页: 一个手柄都没连时的引导
