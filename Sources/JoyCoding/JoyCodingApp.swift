@@ -40,6 +40,14 @@ struct JoyCodingApp: App {
                 }
             }
             Divider()
+            // 远端改过配置就在菜单里留一条 —— 手机能改 Mac 的配置之后,
+            // "谁动的"必须在 Mac 上看得见。10 分钟后自动消失, 免得长期占位。
+            if let c = http.lastRemoteChange, Date().timeIntervalSince(c.at) < 600 {
+                Divider()
+                Text(c.text).font(.caption)
+            }
+
+            Divider()
             Button(L("设置…")) { SettingsWindow.shared.show() }.keyboardShortcut(",")
             Button(L("退出 JoyCoding")) { NSApp.terminate(nil) }.keyboardShortcut("q")
         } label: {

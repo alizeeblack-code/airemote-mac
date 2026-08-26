@@ -161,6 +161,9 @@ enum Translations {
             "Drag to reorder — unless you set the corners yourself on the Phone Remote page, the first four are the corner shortcuts on your phone. Click a row to edit which shortcut each action sends in that app.",
         "这个 app 没装在本机": "This app isn't installed on this Mac",
         "从列表移除": "Remove from the list",
+        "请求格式不对": "Malformed request",
+        "列表内容不一致，请先在 Mac 上增删": "That list doesn't match — add or remove apps on the Mac first",
+        "手机端调整了 app 顺序": "Your phone reordered the app list",
         // 按键映射页: 一个手柄都没连时的引导
         "在系统设置里和手柄蓝牙配对": "Pair your controller over Bluetooth in System Settings",
         "打开蓝牙设置": "Open Bluetooth settings",

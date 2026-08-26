@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import AppKit
+import UserNotifications
 
 /// iPhone 遥控接口。手机「快捷指令」访问 http://<Mac>:27123/<token>/<动作名>。
 /// 手柄和手机走同一张动作表, 加动作两边同时生效。
@@ -109,11 +110,22 @@ final class HTTPServer: ObservableObject {
             if let d = data { buf.append(d) }
 
             let headerEnd = Data("\r\n\r\n".utf8)
-            let gotHeaders = buf.range(of: headerEnd) != nil
+            let headRange = buf.range(of: headerEnd)
             // 64K 上限: 不让对端拿一个永不结束的请求把内存撑爆
-            if !gotHeaders && !done && err == nil && buf.count < 64 * 1024 {
+            if headRange == nil && !done && err == nil && buf.count < 64 * 1024 {
                 self.readRequest(conn, buffer: buf)
                 return
+            }
+            // 有请求体的话(POST)还要接着读 —— 头结束不等于请求结束。
+            // 之前全是 GET, 读到头就够; 加了写接口之后不补这段, body 会被截断
+            // 成半截 JSON, 表现为"偶尔解析失败", 而且和包大小相关、很难复现。
+            if let hr = headRange, !done, err == nil, buf.count < 64 * 1024 {
+                let head = String(decoding: buf[..<hr.lowerBound], as: UTF8.self)
+                let need = HTTPServer.contentLength(head)
+                if buf.count - hr.upperBound < need {
+                    self.readRequest(conn, buffer: buf)
+                    return
+                }
             }
             guard !buf.isEmpty else { conn.cancel(); return }
             self.respond(conn, request: String(decoding: buf, as: UTF8.self))
@@ -123,7 +135,9 @@ final class HTTPServer: ObservableObject {
     private func respond(_ conn: NWConnection, request: String) {
         let path = HTTPServer.parsePath(request)
         let cookie = HTTPServer.parseCookie(request)
-        let (body, ctype, status, setCookie) = self.handle(path, cookie: cookie)
+        let reqBody = request.range(of: "\r\n\r\n").map { String(request[$0.upperBound...]) } ?? ""
+        let (body, ctype, status, setCookie) =
+            self.handle(path, cookie: cookie, method: HTTPServer.parseMethod(request), body: reqBody)
         // 图标是二进制 PNG, 所以响应体统一走 Data
         let head = """
         HTTP/1.1 \(status) \(status == 200 ? "OK" : "Error")\r
@@ -150,6 +164,19 @@ final class HTTPServer: ObservableObject {
         return nil
     }
 
+    static func contentLength(_ head: String) -> Int {
+        for line in head.split(separator: "\r\n") where line.lowercased().hasPrefix("content-length:") {
+            return Int(line.dropFirst(15).trimmingCharacters(in: .whitespaces)) ?? 0
+        }
+        return 0
+    }
+
+    private static func parseMethod(_ req: String) -> String {
+        guard let line = req.split(separator: "\r\n", maxSplits: 1).first,
+              let m = line.split(separator: " ").first else { return "GET" }
+        return String(m).uppercased()
+    }
+
     private static func parsePath(_ req: String) -> String {
         guard let line = req.split(separator: "\r\n", maxSplits: 1).first else { return "" }
         let parts = line.split(separator: " ")
@@ -173,7 +200,8 @@ final class HTTPServer: ObservableObject {
     /// 认证有两条路:
     ///   * 路径里带 token —— 老用法, iOS 快捷指令那种直打动作 URL 的场景
     ///   * Cookie 里带 token —— 手机配对后走这条, URL 只剩 IP:端口, 好手输
-    private func handle(_ path: String, cookie: String?) -> (Data, String, Int, String) {
+    private func handle(_ path: String, cookie: String?,
+                        method: String = "GET", body: String = "") -> (Data, String, Int, String) {
         let cfg = ConfigStore.shared.config
         var comps = path.split(separator: "/").map(String.init)
         let byCookie = (cookie == cfg.httpToken)
@@ -196,6 +224,9 @@ final class HTTPServer: ObservableObject {
 
         let action = comps.first ?? ""
         if action.isEmpty { return txt(RemoteUI.page(), "text/html; charset=utf-8") }
+        if action == "apps" && comps.count > 1 && comps[1] == "order" && method == "POST" {
+            return handleAppOrder(body)
+        }
         if action == "state" { return txt(stateJSON(), "application/json; charset=utf-8") }
         // 某个 app 的完整可用动作表。手机端的功能行编辑器用 ——
         // /state 里的 extras 是给「⋯」面板过滤过的子集, 不够当选择器的数据源。
@@ -244,6 +275,71 @@ final class HTTPServer: ObservableObject {
         guard let d = try? JSONSerialization.data(withJSONObject: [v]),
               let a = String(data: d, encoding: .utf8) else { return "\"\"" }
         return String(a.dropFirst().dropLast())
+    }
+
+    /// POST /apps/order —— 手机端重排 app 顺序。
+    ///
+    /// body: {"apps":["com.a","com.b",...]}
+    ///
+    /// ⚠️ **只接受重排, 不接受增删。** 这是整个端点的安全边界所在:
+    ///
+    /// 在此之前, 这个 HTTP 面的权限只是"执行预定义动作" —— 一个被截获的
+    /// token 能按按钮, 但改不了配置。加写接口就把它扩成了"能改 Mac 的配置",
+    /// 而白名单恰恰决定**通用按键在哪些 app 里生效**: 允许添加, 等于允许远端
+    /// 把 Finder 加进来, 之后一个"回车"就是重命名文件。
+    ///
+    /// 限制成"必须是现有集合的一个排列"之后, 这个接口的能力上限就是换顺序 ——
+    /// 白名单集合本身只能在 Mac 上改, 影响面为零。增删留在 Mac 端。
+    private func handleAppOrder(_ body: String) -> (Data, String, Int, String) {
+        func fail(_ msg: String) -> (Data, String, Int, String) {
+            txt("{\"ok\":false,\"msg\":\(jsonStr(msg))}", "application/json; charset=utf-8", 400)
+        }
+        guard let data = body.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let incoming = obj["apps"] as? [String] else {
+            return fail(L("请求格式不对"))
+        }
+        let current = ConfigStore.shared.config.targetApps
+        // 排列判定: 同一个多重集合。用排序后的数组比而不是 Set ——
+        // Set 会把重复项吃掉, 于是 [a,a,b] 和 [a,b] 会被判成相等。
+        guard incoming.sorted() == current.sorted() else {
+            return fail(L("列表内容不一致，请先在 Mac 上增删"))
+        }
+        guard incoming != current else {
+            return txt("{\"ok\":true,\"changed\":false}", "application/json; charset=utf-8")
+        }
+        DispatchQueue.main.async {
+            ConfigStore.shared.config.targetApps = incoming
+            // 远程改配置这件事必须**在 Mac 上可见** —— 否则用户永远不知道
+            // 有人动过。V2 的写接口都要走这条。
+            self.notify(L("手机端调整了 app 顺序"),
+                              incoming.prefix(4).map(AppName.of).joined(separator: " · "))
+        }
+        return txt("{\"ok\":true,\"changed\":true}", "application/json; charset=utf-8")
+    }
+
+    /// 远端改过配置的痕迹。菜单栏菜单里显示 —— 这是**不依赖任何权限**的那一半,
+    /// 通知被拒或者没弹出来时, 它仍然能让用户看到"有人动过"。
+    @Published private(set) var lastRemoteChange: (text: String, at: Date)?
+
+    /// 写操作在 Mac 上留痕。两条腿走: 系统通知(要授权, 可能被拒) +
+    /// 菜单栏记录(永远可见)。
+    ///
+    /// ⚠️ UNUserNotificationCenter.current() 在**没有 bundle id 的进程里会崩**
+    /// (比如直接 `swift run` 跑二进制, 而不是跑组装好的 .app)。所以先判一下 ——
+    /// 崩在通知这种边角功能上太不划算。
+    func notify(_ title: String, _ body: String) {
+        DispatchQueue.main.async { self.lastRemoteChange = ("\(title) — \(body)", Date()) }
+        guard Bundle.main.bundleIdentifier != nil else { return }
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert]) { granted, _ in
+            guard granted else { return }
+            let c = UNMutableNotificationContent()
+            c.title = title
+            c.body = body
+            center.add(UNNotificationRequest(identifier: UUID().uuidString,
+                                             content: c, trigger: nil))
+        }
     }
 
     private func handlePair(_ comps: [String], cfg: Config) -> (Data, String, Int, String) {
