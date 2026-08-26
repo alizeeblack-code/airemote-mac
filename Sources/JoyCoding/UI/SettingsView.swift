@@ -81,70 +81,56 @@ struct AppsView: View {
     @ObservedObject var store = ConfigStore.shared
     @State private var newApp = ""
     @State private var editing: String?
+    @State private var hovered: String?
 
     var body: some View {
         Form {
             Section(L("生效的 app")) {
                 Toggle(L("只在下列 app 里响应通用按键"), isOn: $store.config.restrictToTargets)
+                // 说明统一 .callout(12pt)。原来这里是 subheadline(11) 和
+                // caption(10) 混用 —— 那套字号是从「通用」页整块搬来的, 在那儿
+                // 它们是次要注解, 搬到这一页之后列表才是主角, 字号却没跟着升。
                 Text(L("whitelistHint"))
-                    .font(.subheadline).foregroundStyle(.secondary)
-                Text(L("点某一行，编辑这个 app 里各动作发什么快捷键"))
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.callout).foregroundStyle(.secondary)
+                // 顺序是**有功能的**, 得说出来, 否则没人知道拖它干什么。
+                // 注意措辞: remoteCorners 非空时是用户手动指定的, 前四个就不生效了
+                // (见 RemoteView.cornerApps), 所以不能说死"前四个就是四角"。
+                Text(L("拖动排序：没在「手机遥控」页单独指定四角时，前四个就是手机上的四角直达键。点某一行可以编辑这个 app 里各动作发什么快捷键。"))
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 List {
                     ForEach(store.config.targetApps, id: \.self) { b in
-                        HStack(spacing: 8) {
-                            Button { editing = b } label: {
-                                HStack(spacing: 8) {
-                                    if let icon = NSWorkspace.shared
-                                        .urlForApplication(withBundleIdentifier: b)
-                                        .map({ NSWorkspace.shared.icon(forFile: $0.path) }) {
-                                        Image(nsImage: icon).resizable().frame(width: 18, height: 18)
-                                    }
-                                    Text(AppName.of(b))
-                                    if AppProfiles.builtin[b] != nil {
-                                        Label(L("预置"), systemImage: "checkmark.seal.fill")
-                                            .font(.caption).foregroundStyle(.green)
-                                            .labelStyle(.iconOnly)
-                                            .help(L("有内置的快捷键预置"))
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption).foregroundStyle(.tertiary)
-                                }
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            Button {
-                                store.config.targetApps.removeAll { $0 == b }
-                            } label: { Image(systemName: "minus.circle") }
-                                .buttonStyle(.borderless)
-                        }
+                        appRow(b)
+                    }
+                    // macOS 的 List 原生支持拖动重排, 不需要编辑模式
+                    .onMove { from, to in
+                        store.config.targetApps.move(fromOffsets: from, toOffset: to)
                     }
                 }
-                .frame(height: 220)
+                // 高度跟着条数走, 不写死 —— 原来固定 220, 装五个就快满了,
+                // 再多要在小框里滚, 而这一页其余地方是空的。
+                .frame(height: min(max(CGFloat(store.config.targetApps.count) * 38 + 16, 120), 420))
 
                 let sug = AppProfiles.suggestions(
                     installed: { NSWorkspace.shared
                         .urlForApplication(withBundleIdentifier: $0) != nil },
                     whitelist: store.config.targetApps)
                 if !sug.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 8) {
                         Text(L("这些已装的 app 有现成的快捷键预置，点一下加进来："))
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.callout).foregroundStyle(.secondary)
                         HStack(spacing: 8) {
                             ForEach(sug, id: \.self) { b in
                                 Button {
                                     store.config.targetApps.append(b)
                                 } label: {
-                                    HStack(spacing: 5) {
-                                        if let icon = NSWorkspace.shared
-                                            .urlForApplication(withBundleIdentifier: b)
-                                            .map({ NSWorkspace.shared.icon(forFile: $0.path) }) {
+                                    HStack(spacing: 6) {
+                                        if let icon = appIcon(b) {
                                             Image(nsImage: icon).resizable()
-                                                .frame(width: 16, height: 16)
+                                                .frame(width: 20, height: 20)
                                         }
-                                        Text(AppName.of(b)).font(.callout)
+                                        Text(AppName.of(b))
                                     }
                                 }
                             }
@@ -174,6 +160,59 @@ struct AppsView: View {
             set: { editing = $0?.id })) { box in
             ProfilesView(app: box.id) { editing = nil }
         }
+    }
+
+    /// 一行 app。图标 28pt —— 这是设置页, app 图标是主要识别物;
+    /// Finder 列表用 16 是因为那里行密、文件名才是主角。
+    private func appRow(_ b: String) -> some View {
+        HStack(spacing: 10) {
+            Button { editing = b } label: {
+                HStack(spacing: 10) {
+                    if let icon = appIcon(b) {
+                        Image(nsImage: icon).resizable().frame(width: 28, height: 28)
+                    } else {
+                        // 没装的 app 也要占同样的位置, 否则整列会错开
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(.quaternary).frame(width: 28, height: 28)
+                            .overlay(Image(systemName: "questionmark")
+                                .font(.caption).foregroundStyle(.secondary))
+                            .help(L("这个 app 没装在本机"))
+                    }
+                    Text(AppName.of(b)).font(.body.weight(.medium))
+                    if AppProfiles.builtin[b] != nil {
+                        // 原来只有一个绿勾, 不悬停看 tooltip 根本看不懂
+                        Text(L("预置"))
+                            .font(.caption).foregroundStyle(.green)
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .background(Capsule().fill(Color.green.opacity(0.12)))
+                            .help(L("有内置的快捷键预置"))
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.callout).foregroundStyle(.tertiary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            // 删除只在悬停时出现 —— 常驻的话每行右边一直挂个减号, 噪音大也容易误点
+            Button {
+                store.config.targetApps.removeAll { $0 == b }
+            } label: {
+                Image(systemName: "minus.circle.fill").font(.body)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.tertiary)
+            .opacity(hovered == b ? 1 : 0)
+            .help(L("从列表移除"))
+        }
+        .padding(.vertical, 3)
+        .onHover { hovered = $0 ? b : (hovered == b ? nil : hovered) }
+    }
+
+    private func appIcon(_ b: String) -> NSImage? {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: b)
+            .map { NSWorkspace.shared.icon(forFile: $0.path) }
     }
 
     private func pickApp() {

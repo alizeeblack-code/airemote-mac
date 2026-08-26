@@ -157,6 +157,10 @@ enum Translations {
         "这里从「App」页的列表里选——列表还是空的":
             "Corners pick from the Apps page's list — which is still empty",
         "去 App 页": "Open Apps",
+        "拖动排序：没在「手机遥控」页单独指定四角时，前四个就是手机上的四角直达键。点某一行可以编辑这个 app 里各动作发什么快捷键。":
+            "Drag to reorder — unless you set the corners yourself on the Phone Remote page, the first four are the corner shortcuts on your phone. Click a row to edit which shortcut each action sends in that app.",
+        "这个 app 没装在本机": "This app isn't installed on this Mac",
+        "从列表移除": "Remove from the list",
         // 按键映射页: 一个手柄都没连时的引导
         "在系统设置里和手柄蓝牙配对": "Pair your controller over Bluetooth in System Settings",
         "打开蓝牙设置": "Open Bluetooth settings",
