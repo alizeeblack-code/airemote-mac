@@ -213,6 +213,13 @@ enum SessionScan {
     /// 会话的工作目录。目录名是把路径里的 / 换成 - 的编码, 路径本身含 - 就解不回去,
     /// 所以从内容读 —— 两家的 transcript 都带 cwd(Codex 包在 payload 里)。
     /// 除了项目名, 这个完整路径还是和活进程 cwd 对账的钥匙(见 SessionHost)。
+    /// 给 SessionTranscript 用 —— 它要按项目名找对应的会话文件, 判据得和
+    /// 这里完全一致, 否则两边认的"项目"会不是同一个。
+    static func projectCwdPublic(_ url: URL) -> String {
+        lock.lock(); defer { lock.unlock() }
+        return projectCwd(url)
+    }
+
     private static func projectCwd(_ url: URL) -> String {
         if let cached = cwdCache[url.path] { return cached }
         var cwd = ""

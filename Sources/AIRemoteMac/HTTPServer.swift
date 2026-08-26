@@ -242,6 +242,20 @@ final class HTTPServer: ObservableObject {
         // /actions/<bundleID> 指定 app, /actions 不带参数则是当前前台 ——
         // 功能行是 per-app 的配置, 手机上要能改「不在前台的那个 app」,
         // 否则想调 Chrome 的按键就得先把 Mac 切到 Chrome。
+        // /session/<Claude|Codex>/<项目名> —— 某个会话最后几轮对话。
+        // 手机上点会话卡进详情页, 看"它最后说了什么"。纯读。
+        if action == "session", comps.count > 2 {
+            let toolName = comps[1].lowercased()
+            let tool: SessionScan.Tool = toolName == "codex" ? .codex : .claude
+            let project = comps[2].removingPercentEncoding ?? comps[2]
+            let turns = SessionTranscript.recent(tool: tool, project: project)
+            let items = turns.map {
+                "{\"role\":\(jsonStr($0.role)),\"text\":\(jsonStr($0.text)),"
+                + "\"tools\":[\($0.tools.map(jsonStr).joined(separator: ","))]}"
+            }.joined(separator: ",")
+            return txt("{\"project\":\(jsonStr(project)),\"turns\":[\(items)]}",
+                       "application/json; charset=utf-8")
+        }
         if action == "actions" {
             let target = comps.count > 1 && !comps[1].isEmpty
                 ? comps[1] : AppContext.shared.frontBundle
