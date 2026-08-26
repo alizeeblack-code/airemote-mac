@@ -23,10 +23,35 @@ enum SessionScan {
         }
     }
 
+    /// 会话状态。**只有三档 + Codex 的一个例外**, 这是照着真实数据定的。
+    ///
+    /// 扫过本机 30 个 Claude 会话: 最后一条对话记录里 25 个是
+    /// `assistant / stop_reason=end_turn` —— 也就是说"模型答完等你追问"和
+    /// "任务干完了"在 transcript 里**写下来一模一样**, 分不开。带 error 标记的
+    /// 命中 0 个(工具报错落在 tool_result.is_error, 那是中间过程, 模型会接着
+    /// 处理; 真跑挂了多半根本没写进去)。
+    ///
+    /// 所以不做 thinking/needs-input/done/error 四态 —— 猜错的状态比没有状态
+    /// 更糟: 显示"已完成"会让人不去看, 而它可能正等着授权。
+    ///
+    /// 唯一的例外是 Codex: 它会写一条 payload.type == "task_complete",
+    /// 那是明确的完成信号, 所以 .done 只在 Codex 上出现。
+    enum Status: String {
+        case working    // 10 秒内有写入, 正在跑
+        case waiting    // 停下了, 球在用户这边
+        case idle       // 很久没动了
+        case done       // 明确完成(目前只有 Codex 给得出)
+    }
+
+    /// waiting 与 idle 的分界。10 分钟没动基本就是"这事翻篇了",
+    /// 而不是"我正等你回一句"。
+    private static let idleAfter: TimeInterval = 600
+
     struct Entry {
         let name: String        // 项目目录名
         let ageSec: Int         // 距最后一次写入多久
-        let busy: Bool
+        let busy: Bool          // == (status == .working), 留着给老手机端
+        let status: Status
         let tool: Tool
         let appID: String       // 宿主 app 的 bundle id, 给手机取图标
     }
@@ -111,7 +136,7 @@ enum SessionScan {
         }
         return newest.map { cwd, v in
             (entry(cwd: cwd, fallbackName: v.0.deletingLastPathComponent().lastPathComponent,
-                   at: v.1, tool: .codex), v.1)
+                   at: v.1, tool: .codex, url: v.0), v.1)
         }
     }
 
@@ -126,12 +151,47 @@ enum SessionScan {
     }
 
     private static func entry(cwd: String, fallbackName: String,
-                              at m: Date, tool: Tool) -> Entry {
+                              at m: Date, tool: Tool, url: URL? = nil) -> Entry {
         let age = Date().timeIntervalSince(m)
         let name = cwd.isEmpty ? shortFallback(fallbackName)
                                : (cwd as NSString).lastPathComponent
-        return Entry(name: name, ageSec: Int(age), busy: age < 10, tool: tool,
-                     appID: SessionHost.appID(cwd: cwd, tool: tool))
+        let working = age < 10
+        var status: Status = working ? .working : (age < idleAfter ? .waiting : .idle)
+        // Codex 收尾会写一条 task_complete。它比 mtime 准 —— 哪怕文件刚写完
+        // 不到 10 秒, 那次写入本身就是"结束"这件事。
+        if tool == .codex, let url, codexCompleted(url, at: m) { status = .done }
+        return Entry(name: name, ageSec: Int(age), busy: working, status: status,
+                     tool: tool, appID: SessionHost.appID(cwd: cwd, tool: tool))
+    }
+
+    /// Codex 会话是不是以 task_complete 收尾。
+    ///
+    /// ⚠️ 按 (路径, mtime) 缓存。手机每 1.5 秒轮一次 /state, 不缓存的话每次
+    /// 都要去读文件尾 —— cwd 那边已经踩过这个坑, 同样的道理。mtime 变了才重读。
+    private static var completeCache: [String: (mtime: Date, done: Bool)] = [:]
+
+    private static func codexCompleted(_ url: URL, at m: Date) -> Bool {
+        if let c = completeCache[url.path], c.mtime == m { return c.done }
+        var done = false
+        if let fh = try? FileHandle(forReadingFrom: url) {
+            defer { try? fh.close() }
+            // 只读尾部 64K: 会话文件可能很大, 而我们只关心最后一条事件
+            let size = (try? fh.seekToEnd()) ?? 0
+            try? fh.seek(toOffset: size > 65_536 ? size - 65_536 : 0)
+            let tail = (try? fh.readToEnd()) ?? Data()
+            let lines = String(decoding: tail, as: UTF8.self)
+                .split(separator: "\n").filter { $0.hasPrefix("{") }
+            if let last = lines.last,
+               let d = last.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+               let payload = obj["payload"] as? [String: Any] {
+                done = payload["type"] as? String == "task_complete"
+            }
+        }
+        completeCache[url.path] = (m, done)
+        // 会话文件会不断新增, 缓存不清理会一直长
+        if completeCache.count > 200 { completeCache.removeAll() }
+        return done
     }
 
     /// cwd 读不到时的兜底名。

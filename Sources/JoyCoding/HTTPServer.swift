@@ -388,8 +388,11 @@ final class HTTPServer: ObservableObject {
         // 算配色和无障碍朗读 —— 跟着前台 app 时有时无的话, 同一个会话的颜色
         // 会在切 app 时跳变。
         let sessions = found.map {
+            // busy 保留: 老手机端只认它, 协议变更要向后兼容。
+            // status 是新的三档(+Codex 的 done), 新端优先用它。
             "{\"name\":\(jsonStr($0.name)),\"ageSec\":\($0.ageSec),"
-            + "\"busy\":\($0.busy),\"tool\":\(jsonStr($0.tool.label)),"
+            + "\"busy\":\($0.busy),\"status\":\(jsonStr($0.status.rawValue)),"
+            + "\"tool\":\(jsonStr($0.tool.label)),"
             + "\"appID\":\(jsonStr($0.appID))}"
         }.joined(separator: ",")
         return """
