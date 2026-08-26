@@ -73,12 +73,14 @@ enum AppProfiles {
         // 按错了也只是没反应, 不会有副作用。
         "interrupt":    .init("escape"),
         "focusInput":   .init("shift+escape"),
+        "deleteWord":   .init("alt+delete"),
         // modelMenu 故意不配: text: 规格会在打完字后自动回车, 在 ChatGPT 里
         // 等于把 "/" 当成消息发出去。得先确认斜杠菜单的行为再说。
     ]
 
     static let builtin: [String: AppKeyMap] = [
         BundleID.claude: [
+            "deleteWord":  .init("alt+delete"),
             "sessionPrev": .init("ctrl+shift+tab"),
             "sessionNext": .init("ctrl+tab"),
             "newSession":  .init("cmd+n"),
@@ -94,6 +96,7 @@ enum AppProfiles {
             "clearLine":   .init("cmd+a"),      // 之后再补一次退格
         ],
         BundleID.ghostty: [
+            "deleteWord":  .init("ctrl+w"),        // 终端走 readline, 不是 ⌥⌫
             "sessionPrev": .init("cmd+shift+`"),   // Ghostty 走窗口而不是标签
             "sessionNext": .init("cmd+`"),
             "mode":        .init("shift+tab"),     // Codex: 循环 Plan/Pair/Execute
@@ -102,6 +105,7 @@ enum AppProfiles {
             "interrupt":   .init("ctrl+c"),
         ],
         BundleID.wechat: [
+            "deleteWord":       .init("alt+delete"),
             "sessionPrev":      .init("alt+up"),     // 菜单 Show → Previous Chat
             "sessionNext":      .init("alt+down"),
             "wechatNextUnread": .init("cmd+alt+down"),
@@ -111,6 +115,7 @@ enum AppProfiles {
         // 这份不是 —— 写它的时候本机没装 Slack, 下面是官方文档里的常用键。
         // 装上 Slack 之后请对着菜单栏核一遍再把这条注释删掉。
         BundleID.slack: [
+            "deleteWord":       .init("alt+delete"),
             "sessionPrev":      .init("alt+up"),        // 上一个频道
             "sessionNext":      .init("alt+down"),      // 下一个频道
             "wechatNextUnread": .init("alt+shift+down"),// 下一个未读(ID 见 Actions)
@@ -121,6 +126,7 @@ enum AppProfiles {
             // 猜一个错的比不配更糟(按下去会触发别的功能)。
         ],
         BundleID.chrome: [
+            "deleteWord":  .init("alt+delete"),
             "sessionPrev": .init("ctrl+shift+tab"),
             "sessionNext": .init("ctrl+tab"),
             "navBack":     .init("cmd+["),
@@ -140,12 +146,14 @@ enum AppProfiles {
         BundleID.chatgpt: openAI,
         "com.openai.chat":  openAI,          // 留给旧版本
         BundleID.cursor: [                          // Cursor
+            "deleteWord":  .init("alt+delete"),
             "sessionPrev": .init("cmd+shift+["),
             "sessionNext": .init("cmd+shift+]"),
             "newSession":  .init("cmd+n"),
             "terminalPane":.init("ctrl+`"),
         ],
         "com.microsoft.VSCode": [
+            "deleteWord":  .init("alt+delete"),
             "sessionPrev": .init("cmd+shift+["),
             "sessionNext": .init("cmd+shift+]"),
             "newSession":  .init("cmd+n"),
@@ -153,12 +161,14 @@ enum AppProfiles {
             "closeTab":    .init("cmd+w"),
         ],
         "com.googlecode.iterm2": [
+            "deleteWord":  .init("ctrl+w"),         // 终端
             "sessionPrev": .init("cmd+shift+["),
             "sessionNext": .init("cmd+shift+]"),
             "clearLine":   .init("ctrl+u"),
             "interrupt":   .init("ctrl+c"),
         ],
         "com.apple.Terminal": [
+            "deleteWord":  .init("ctrl+w"),         // 终端
             "sessionPrev": .init("cmd+shift+["),
             "sessionNext": .init("cmd+shift+]"),
             "clearLine":   .init("ctrl+u"),
@@ -177,7 +187,7 @@ enum AppProfiles {
     /// 它们在所有 app 里都一样。
     static let configurable = [
         "sessionPrev", "sessionNext", "newSession", "focusInput",
-        "modelMenu", "effortMenu", "mode", "clearLine", "interrupt",
+        "modelMenu", "effortMenu", "mode", "clearLine", "deleteWord", "interrupt",
         "diffPane", "terminalPane", "browserPane", "sideChat", "closePane",
         "viewMode", "navBack", "navForward", "reload", "newTab", "closeTab",
         "windowNext", "wechatNextUnread",

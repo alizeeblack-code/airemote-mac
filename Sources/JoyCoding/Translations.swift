@@ -164,6 +164,8 @@ enum Translations {
         "请求格式不对": "Malformed request",
         "列表内容不一致，请先在 Mac 上增删": "That list doesn't match — add or remove apps on the Mac first",
         "手机端调整了 app 顺序": "Your phone reordered the app list",
+        "删除一个词": "Delete a word",
+        "终端是 Ctrl+W，输入框是 ⌥⌫": "Ctrl+W in terminals, ⌥⌫ in text fields",
         // 按键映射页: 一个手柄都没连时的引导
         "在系统设置里和手柄蓝牙配对": "Pair your controller over Bluetooth in System Settings",
         "打开蓝牙设置": "Open Bluetooth settings",

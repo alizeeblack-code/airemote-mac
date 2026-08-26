@@ -79,6 +79,17 @@ enum Actions {
         ActionDef("delete", L("退格删除"), repeatable: true) {
             if ctx.inTarget() { key([], "delete") }
         },
+        // delete(一个字符) 和 clearLine(整行) 之间原来是空的。语音听写出来
+        // 一段话, 末尾两三个词不对时, 要么按住退格一个字一个字删, 要么整段
+        // 清掉重说 —— 这一档正好补上。
+        //
+        // 系统层面本来就有: 原生输入框 ⌥⌫, 终端 ⌃W。两套不通用, 所以照旧
+        // 走档案按 app 配。
+        ActionDef("deleteWord", L("删除一个词"), L("终端是 Ctrl+W，输入框是 ⌥⌫"),
+                  repeatable: true) {
+            guard ctx.inTarget() else { return }
+            send("deleteWord")
+        },
         ActionDef("clearLine", L("清空当前输入"), L("终端是 Ctrl+U，输入框是全选再删")) {
             guard ctx.inTarget() else { return }
             if let spec = AppProfiles.key("clearLine", app: ctx.frontBundle),
