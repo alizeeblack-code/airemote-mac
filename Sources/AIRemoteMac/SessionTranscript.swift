@@ -14,13 +14,21 @@ import Foundation
 enum SessionTranscript {
 
     struct Turn: Equatable {
-        let role: String      // "user" / "assistant"
+        /// "user" / "assistant" / **"tools"**。
+        /// tools 是合成的一条 —— 把连续的纯工具调用压成一行摘要, 见 condense。
+        let role: String
         let text: String
-        let tools: [String]   // 这一轮用了哪些工具, 折叠成一行
+        let tools: [String]   // 用了哪些工具(**带重复**, 手机端自己聚成 "Bash ×7")
     }
 
-    /// 最多返回几轮。手机屏就那么大, 给多了也看不完。
-    private static let maxTurns = 6
+    /// 最多返回几段**有正文的**回复。
+    ///
+    /// ⚠️ 关键是"有正文的" —— 原来按总轮数取 6, 实测四个真实会话里
+    /// 6 轮有 3~5 轮正文是空的(只有一个工具名), 手机上就是一串空行,
+    /// 真正想看的那段话反而被挤出屏幕。
+    private static let maxTextTurns = 4
+    /// 一条工具摘要里最多列几个 —— 一轮跑几十个工具是常事, 全给会撑爆 JSON。
+    private static let maxToolsPerRun = 40
     /// 单条最多多少字 —— 有的回复几千字, 全塞进 JSON 会把 /state 之外的
     /// 这个接口撑得很慢, 而手机上也读不完。
     private static let maxChars = 1200
@@ -108,6 +116,41 @@ enum SessionTranscript {
         return t.count > maxChars ? String(t.prefix(maxChars)) + "…" : t
     }
 
+    /// 把原始轮次压成"值得看的那几段"。
+    ///
+    /// 规则: 只有带正文的轮次才计入 maxTextTurns; 夹在中间的连续纯工具调用
+    /// 合并成一条 role == "tools" 的摘要(而不是每个占一行空白)。
+    ///
+    /// 顺序: 输入是时间正序, 这里倒着走(先拿最新的, 因为要保的是尾巴),
+    /// 最后再翻回正序。
+    private static func condense(_ turns: [Turn]) -> [Turn] {
+        var out: [Turn] = []          // 倒序累积
+        var pending: [String] = []    // 比当前轮更新的那些工具, 等碰到正文再吐
+        var textCount = 0
+
+        for t in turns.reversed() {
+            if t.text.isEmpty {
+                // 纯工具轮。倒着走, 所以更老的要插到前面, 才能保住时间正序。
+                pending.insert(contentsOf: t.tools, at: 0)
+                continue
+            }
+            if !pending.isEmpty {
+                out.append(Turn(role: "tools", text: "",
+                                tools: Array(pending.prefix(maxToolsPerRun))))
+                pending = []
+            }
+            out.append(t)
+            textCount += 1
+            if textCount >= maxTextTurns { break }
+        }
+        // 整段都是工具调用(会话正跑在半路上)时, 这一条就是全部内容, 不能丢
+        if !pending.isEmpty, textCount < maxTextTurns {
+            out.append(Turn(role: "tools", text: "",
+                            tools: Array(pending.prefix(maxToolsPerRun))))
+        }
+        return out.reversed()
+    }
+
     // MARK: - Claude
     //
     // 每行一条记录, 对话在 type ∈ {user, assistant}, 正文在
@@ -143,7 +186,7 @@ enum SessionTranscript {
             guard !clean.isEmpty || !tools.isEmpty else { continue }
             turns.append(Turn(role: type, text: clean, tools: tools))
         }
-        return Array(turns.suffix(maxTurns))
+        return condense(turns)
     }
 
     // MARK: - Codex
@@ -170,6 +213,6 @@ enum SessionTranscript {
             guard !clean.isEmpty else { continue }
             turns.append(Turn(role: role, text: clean, tools: []))
         }
-        return Array(turns.suffix(maxTurns))
+        return condense(turns)
     }
 }
