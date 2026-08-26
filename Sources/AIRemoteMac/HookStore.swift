@@ -113,10 +113,24 @@ final class HookStore {
 
     /// 某个 transcript 对应的实时状态。没有 hook 数据或已过期就返回 nil,
     /// 调用方退回自己的判断。
-    func status(transcript path: String) -> Live? {
+    /// - Parameter modified: transcript 文件的 mtime, 用来识破过期的 blocked。
+    func status(transcript path: String, modified: Date? = nil) -> Live? {
         lock.lock()
         defer { lock.unlock() }
         guard let e = live[path], Date().timeIntervalSince(e.at) < trustFor else { return nil }
+
+        // ⚠️ blocked 要额外校验一次。
+        //
+        // 授权框开着的时候会话是**停住不写文件的** —— 所以只要 mtime 比这条
+        // hook 事件还新, 就说明框早被点掉、会话已经继续跑了, 只是后续事件没
+        // 收到(比如你点了拒绝之后 Stop 丢了, 或者 app 那会儿没开)。
+        //
+        // 不堵这个洞的话, 状态会一直挂到 4 小时信任期结束, 手机上显示"等你点
+        // 允许"而其实早就跑完了 —— 这种错状态比没状态更坑, 会让人白跑一趟。
+        // 多留 2 秒余量: 框弹出前后本来就有写入。
+        if e.status == .blocked, let m = modified, m > e.at.addingTimeInterval(2) {
+            return nil
+        }
         return e
     }
 

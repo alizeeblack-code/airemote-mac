@@ -172,7 +172,7 @@ enum SessionScan {
         // hook 推来的状态比 mtime 准得多 —— mtime 只知道"有没有在写",
         // hook 知道"在等你输入 / 卡在授权框 / 报错了"。有就盖掉。
         let path = url?.path ?? ""
-        if let live = HookStore.shared.status(transcript: path) { status = live.status }
+        if let live = HookStore.shared.status(transcript: path, modified: m) { status = live.status }
         return Entry(name: name, ageSec: Int(age), busy: working, status: status,
                      tool: tool, appID: SessionHost.appID(cwd: cwd, tool: tool), key: path)
     }
