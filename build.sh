@@ -247,13 +247,16 @@ elif [[ "$WANT_DMG" == 1 ]]; then
 fi
 
 # 已经装过就顺手同步过去 —— 否则很容易出现"改了代码但跑的还是旧版本"
-if [ -d /Applications/AIRemote for Mac.app ]; then
+# ⚠️ app 名带空格, 路径必须加引号。改名时漏了引号, 这里的 rm -rf 会被拆成
+# `rm -rf /Applications/AIRemote` 和两个别的参数 —— 万幸那个路径不存在。
+INSTALLED="/Applications/AIRemote for Mac.app"
+if [ -d "$INSTALLED" ]; then
   RUNNING=$(pgrep -x AIRemoteMac || true)
   [ -n "$RUNNING" ] && killall AIRemoteMac 2>/dev/null && sleep 1
-  rm -rf /Applications/AIRemote for Mac.app
-  ditto "$APP" /Applications/AIRemote for Mac.app
+  rm -rf "$INSTALLED"
+  ditto "$APP" "$INSTALLED"
   echo "▸ 已同步到 /Applications"
-  [ -n "$RUNNING" ] && open /Applications/AIRemote for Mac.app
+  [ -n "$RUNNING" ] && open "$INSTALLED"
 fi
 
 echo "✅ $APP"
