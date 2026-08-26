@@ -3,7 +3,7 @@ set -e
 cd "$(dirname "$0")"
 
 APP="build/AIRemote for Mac.app"
-VERSION="0.6.0"
+VERSION="0.7.0"
 
 # 开关。原来只认第一个参数是不是 --no-notarize, 加了 --dmg 之后得正经解析,
 # 否则 `./build.sh --dmg` 会被当成"要公证"而 `--no-notarize --dmg` 顺序敏感。

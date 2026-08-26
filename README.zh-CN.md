@@ -102,7 +102,7 @@ ChatGPT 聚焦输入框是 `⇧⎋`，而 Claude Code 压根没有这个快捷�
 **或者自己编译**（需要 Xcode 命令行工具）：
 
 ```bash
-git clone https://github.com/alizeeblack-code/joycoding.git
+git clone https://github.com/alizeeblack-code/airemote-mac.git
 cd joycoding && ./build.sh --no-notarize
 ```
 

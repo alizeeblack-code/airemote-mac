@@ -109,7 +109,7 @@ natively on both Apple Silicon and Intel Macs.
 **Or build it yourself** (needs Xcode command line tools):
 
 ```bash
-git clone https://github.com/alizeeblack-code/joycoding.git
+git clone https://github.com/alizeeblack-code/airemote-mac.git
 cd joycoding && ./build.sh --no-notarize
 ```
 
