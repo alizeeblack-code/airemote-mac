@@ -41,6 +41,10 @@ enum SessionScan {
         case waiting    // 停下了, 球在用户这边
         case idle       // 很久没动了
         case done       // 明确完成(目前只有 Codex 给得出)
+        // 下面两档**只有 Claude Code 的 hook 给得出**, 扫文件永远推不出来 ——
+        // 授权框和 API 报错都不写进 transcript。装了 hook 才会出现。
+        case blocked    // 卡在授权框, 等你点「允许」
+        case failed     // API 报错(限流/过载), 这轮没跑成
     }
 
     /// waiting 与 idle 的分界。10 分钟没动基本就是"这事翻篇了",
@@ -54,6 +58,10 @@ enum SessionScan {
         let status: Status
         let tool: Tool
         let appID: String       // 宿主 app 的 bundle id, 给手机取图标
+        /// transcript 文件路径。**只用来跟 hook 推来的状态对上号** ——
+        /// hook 每条 payload 都带 transcript_path, 而且整个会话不变;
+        /// 拿 cwd 当键会错(会话里 cd 一下 cwd 就变了)。不输出给手机端。
+        let key: String
     }
 
     /// 项目路径缓存: transcript 路径 -> cwd。cwd 要读文件内容, 不能每 1.5s 轮询都读。
@@ -113,7 +121,8 @@ enum SessionScan {
             }
         }
         return newest.map { key, v in
-            (entry(cwd: projectCwd(v.0), fallbackName: key, at: v.1, tool: .claude), v.1)
+            // ⚠️ url 必须传: hook 状态是按 transcript 路径关联的, 不传就永远对不上。
+            (entry(cwd: projectCwd(v.0), fallbackName: key, at: v.1, tool: .claude, url: v.0), v.1)
         }
     }
 
@@ -160,8 +169,12 @@ enum SessionScan {
         // Codex 收尾会写一条 task_complete。它比 mtime 准 —— 哪怕文件刚写完
         // 不到 10 秒, 那次写入本身就是"结束"这件事。
         if tool == .codex, let url, codexCompleted(url, at: m) { status = .done }
+        // hook 推来的状态比 mtime 准得多 —— mtime 只知道"有没有在写",
+        // hook 知道"在等你输入 / 卡在授权框 / 报错了"。有就盖掉。
+        let path = url?.path ?? ""
+        if let live = HookStore.shared.status(transcript: path) { status = live.status }
         return Entry(name: name, ageSec: Int(age), busy: working, status: status,
-                     tool: tool, appID: SessionHost.appID(cwd: cwd, tool: tool))
+                     tool: tool, appID: SessionHost.appID(cwd: cwd, tool: tool), key: path)
     }
 
     /// Codex 会话是不是以 task_complete 收尾。

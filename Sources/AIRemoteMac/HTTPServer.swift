@@ -235,6 +235,19 @@ final class HTTPServer: ObservableObject {
         if action == "apps" && comps.count > 1 && comps[1] == "order" && method == "POST" {
             return handleAppOrder(body)
         }
+        // Claude Code 的 hook 往这里推实时会话状态。走的是跟手机端**同一套
+        // token 鉴权**(路径里带 token), 所以没有新增鉴权面 —— 本机随便一个
+        // 进程都能伪造会话状态是不行的。
+        if action == "hook" {
+            if comps.count > 1 && comps[1] == "dump" {
+                return txt(HookStore.shared.dump(), "application/json; charset=utf-8")
+            }
+            guard method == "POST" else { return txt("post only\n", "text/plain; charset=utf-8", 405) }
+            HookStore.shared.ingest(body)
+            // 必须秒回: hook 是**串在 Claude Code 每次工具调用上的**,
+            // 这里慢一点就是用户那边每个命令都卡一下。
+            return txt("ok\n")
+        }
         if action == "state" { return txt(stateJSON(), "application/json; charset=utf-8") }
         // 某个 app 的完整可用动作表。手机端的功能行编辑器用 ——
         // /state 里的 extras 是给「⋯」面板过滤过的子集, 不够当选择器的数据源。
