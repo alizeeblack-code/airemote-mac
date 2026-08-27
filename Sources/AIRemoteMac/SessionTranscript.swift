@@ -76,7 +76,8 @@ enum SessionTranscript {
     }
 
     /// 该项目下最新的那个会话文件。项目名匹配用 SessionScan 同一套 cwd 判据。
-    private static func newestTranscript(tool: SessionScan.Tool, project: String) -> URL? {
+    /// 非 private: /session/goto 要拿它换 CLI session UUID(见 SessionJump)。
+    static func newestTranscript(tool: SessionScan.Tool, project: String) -> URL? {
         let fm = FileManager.default
         let root = fm.homeDirectoryForCurrentUser
             .appendingPathComponent(tool == .claude ? ".claude/projects" : ".codex/sessions")

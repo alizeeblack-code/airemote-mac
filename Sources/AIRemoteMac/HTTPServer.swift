@@ -257,6 +257,29 @@ final class HTTPServer: ObservableObject {
         // 否则想调 Chrome 的按键就得先把 Mac 切到 Chrome。
         // /session/<Claude|Codex>/<项目名> —— 某个会话最后几轮对话。
         // 手机上点会话卡进详情页, 看"它最后说了什么"。纯读。
+        // /session/goto/<Claude|Codex>/<项目> —— 跳到这个会话。
+        //
+        // 优先精确跳到**那个 session**(Claude 的 claude://resume deep link),
+        // 不行就退回把宿主 app 切到前面。判断放在 Mac 端: 手机端不知道哪些
+        // 会话支持 deep link, 也不该知道。
+        if action == "session", comps.count > 3, comps[1] == "goto" {
+            let tool: SessionScan.Tool = comps[2].lowercased() == "codex" ? .codex : .claude
+            let project = comps[3].removingPercentEncoding ?? comps[3]
+            let path = SessionTranscript.newestTranscript(tool: tool, project: project)?.path ?? ""
+            if SessionJump.jump(tool: tool, transcript: path) {
+                return txt("{\"ok\":true,\"how\":\"session\"}",
+                           "application/json; charset=utf-8")
+            }
+            // 退回切 app。宿主取和 /state 同一套判据, 免得两处不一致。
+            let cwd = path.isEmpty ? "" : SessionScan.projectCwdPublic(URL(fileURLWithPath: path))
+            let host = SessionHost.appID(cwd: cwd, tool: tool)
+            guard !host.isEmpty else {
+                return txt("{\"ok\":false}", "application/json; charset=utf-8")
+            }
+            AppContext.shared.focus(host)
+            return txt("{\"ok\":true,\"how\":\"app\"}",
+                       "application/json; charset=utf-8")
+        }
         if action == "session", comps.count > 2 {
             let toolName = comps[1].lowercased()
             let tool: SessionScan.Tool = toolName == "codex" ? .codex : .claude
@@ -470,13 +493,21 @@ final class HTTPServer: ObservableObject {
         // tool 恒定输出: 手机端不再拿它当文字标签(改用 appID 的图标了), 只用来
         // 算配色和无障碍朗读 —— 跟着前台 app 时有时无的话, 同一个会话的颜色
         // 会在切 app 时跳变。
-        let sessions = found.map {
+        let sessions = found.map { s -> String in
+            // goto: 这个会话能不能"点一下就跳过去"。手机端据此决定详情页
+            // 右上角那个按钮是亮着还是置灰 —— 点了没反应比按钮灰着更糟。
+            // 能精确跳(Claude 的 deep link)或者至少能切宿主 app, 都算能。
+            //
+            // ⚠️ 先算好再拼: Swift 的字符串插值**不能跨行**, 写成多行的
+            // \(a || b) 会报 "unterminated string literal"。
+            let canGo = SessionJump.canJump(tool: s.tool, transcript: s.key)
+                || !s.appID.isEmpty
             // busy 保留: 老手机端只认它, 协议变更要向后兼容。
             // status 是新的三档(+Codex 的 done), 新端优先用它。
-            "{\"name\":\(jsonStr($0.name)),\"ageSec\":\($0.ageSec),"
-            + "\"busy\":\($0.busy),\"status\":\(jsonStr($0.status.rawValue)),"
-            + "\"tool\":\(jsonStr($0.tool.label)),"
-            + "\"appID\":\(jsonStr($0.appID))}"
+            return "{\"name\":\(jsonStr(s.name)),\"ageSec\":\(s.ageSec),"
+                + "\"busy\":\(s.busy),\"status\":\(jsonStr(s.status.rawValue)),"
+                + "\"tool\":\(jsonStr(s.tool.label)),\"goto\":\(canGo),"
+                + "\"appID\":\(jsonStr(s.appID))}"
         }.joined(separator: ",")
         return """
         {"app":"\(esc(front))","appName":"\(esc(AppName.of(front)))",\
