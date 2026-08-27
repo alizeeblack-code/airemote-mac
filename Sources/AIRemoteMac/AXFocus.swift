@@ -32,27 +32,91 @@ enum AXFocus {
         return (v as? Bool) ?? false
     }
 
-    /// 反复试到成功或超时, **同步返回结果**。
+    /// 反复试到**焦点站稳**或超时, 同步返回结果。
     ///
-    /// 为什么要轮询: deep link 切会话会让整个界面重渲染, 立刻去找输入框多半
-    /// 还没挂上; 而 Chromium 收到 AXManualAccessibility 之后是**异步**重建
-    /// 无障碍树的 —— 实测不等的话只能看到 235 个节点的空壳, 等一下才有 1015 个。
+    /// ⚠️ 光"设上了"是不够的, 必须**等一下再回读确认它还在**。
+    ///
+    /// 实测: 切到另一条会话时, 点完侧栏界面要重渲染, 我们设的焦点会在几百
+    /// 毫秒后**被重渲染抢回去** —— 表现是接口报 focused:true, 但人走过去
+    /// 一看光标不在输入框里, 而且只在"真的换了会话"时才出现("再点一次同一条"
+    /// 不重渲染, 反而是好的)。用户报的就是这个。
+    ///
+    /// 所以每轮: 设焦点 → 睡一下让重渲染有机会发生 → 回读。连着两次都还在
+    /// 才认。多花约 0.8 秒, 换的是这个功能真的可用。
     ///
     /// 为什么同步而不是丢后台: 结果要能回给调用方。这条路上没有任何其它可
     /// 观测点, 静默失败的话用户只会说"跳过去了但还是不能打字", 而我们什么
-    /// 都查不到。上限 2.5 秒, 走的是自己那条 HTTP 连接, 不挡别的请求。
-    static func focusInput(bundleID: String, timeout: TimeInterval = 2.5) -> Bool {
+    /// 都查不到。走的是自己那条 HTTP 连接, 不挡别的请求。
+    static func focusInput(bundleID: String, timeout: TimeInterval = 4) -> Bool {
         guard let a = NSWorkspace.shared.runningApplications
             .first(where: { $0.bundleIdentifier == bundleID }) else { return false }
         let pid = a.processIdentifier
         let ax = AXUIElementCreateApplication(pid)
         AXUIElementSetAttributeValue(ax, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         let deadline = Date().addingTimeInterval(timeout)
+        var clicked = false
         repeat {
-            if focusInput(pid: pid) { return true }
-            Thread.sleep(forTimeInterval: 0.25)
+            // 先试设属性 —— 不动鼠标, 能成就最干净。
+            _ = focusInput(pid: pid)
+            Thread.sleep(forTimeInterval: 0.5)
+            if composerFocused(pid) {
+                Thread.sleep(forTimeInterval: 0.5)
+                if composerFocused(pid) { return true }
+            }
+            // 设属性被重渲染抢回去了。**改成真点一下** —— 用户手动就是这么
+            // 做的, 比设 AXFocused 硬得多; 属性可以被下一次渲染覆盖, 一次
+            // 真实点击产生的焦点不会。只点一次, 免得反复挪用户的鼠标。
+            if !clicked {
+                clicked = true
+                clickComposer(pid)
+                Thread.sleep(forTimeInterval: 0.6)
+                if composerFocused(pid) { return true }
+            }
         } while Date() < deadline
-        return false
+        return composerFocused(pid)
+    }
+
+    /// 在输入框中心点一下。
+    ///
+    /// ⚠️ 点完要把鼠标挪回去。CGEvent 的点击会**真的移动光标** —— 用户正
+    /// 盯着屏幕的话会看到指针莫名其妙跳走, 而他根本没碰鼠标。
+    private static func clickComposer(_ pid: pid_t) {
+        let app = AXUIElementCreateApplication(pid)
+        guard let el = findComposer(app),
+              let p = position(el), let sz = size(el), sz.width > 0 else { return }
+        // 靠左一点: 输入框右侧常有发送/附件按钮, 点正中心可能戳到它们
+        let pt = CGPoint(x: p.x + min(60, sz.width / 2), y: p.y + sz.height / 2)
+        let restore = CGEvent(source: nil)?.location
+        for type in [CGEventType.leftMouseDown, .leftMouseUp] {
+            CGEvent(mouseEventSource: nil, mouseType: type,
+                    mouseCursorPosition: pt, mouseButton: .left)?.post(tap: .cghidEventTap)
+            usleep(30_000)
+        }
+        if let r = restore { CGWarpMouseCursorPosition(r) }
+    }
+
+    private static func size(_ el: AXUIElement) -> CGSize? {
+        var v: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(el, kAXSizeAttribute as CFString, &v) == .success,
+              let val = v else { return nil }
+        var s = CGSize.zero
+        // swiftlint:disable:next force_cast
+        guard AXValueGetValue(val as! AXValue, .cgSize, &s) else { return nil }
+        return s
+    }
+
+    /// 输入框此刻是不是焦点。
+    ///
+    /// ⚠️ 这里**也要**置 AXManualAccessibility。切会话会换渲染进程, 新进程的
+    /// 无障碍树是塌着的 —— 不重新打开就 findComposer == nil, 于是"读不到
+    /// 输入框"被当成"焦点丢了", 白白重试甚至误报失败。查了半天才想明白。
+    private static func composerFocused(_ pid: pid_t) -> Bool {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        guard let el = findComposer(app) else { return false }
+        var v: CFTypeRef?
+        AXUIElementCopyAttributeValue(el, kAXFocusedAttribute as CFString, &v)
+        return (v as? Bool) ?? false
     }
 
     /// 找"最像输入框"的那个元素。
@@ -132,6 +196,8 @@ enum AXFocus {
         AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         let deadline = Date().addingTimeInterval(2.5)
         repeat {
+            // 同上: 每轮都置一遍, 树可能刚塌过
+            AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
             for el in descendants(app) {
                 guard string(el, kAXRoleAttribute) == kAXButtonRole,
                       let p = position(el), p.x < 420 else { continue }   // 只看左侧栏
