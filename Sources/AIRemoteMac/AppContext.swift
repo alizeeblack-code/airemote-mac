@@ -54,12 +54,38 @@ final class AppContext {
         if history.count > 12 { history.removeLast(history.count - 12) }
     }
 
+    /// 把某个 app 切到前台。
+    ///
+    /// ⚠️ **必须走 LaunchServices(openApplication), 不能用 activate()。**
+    ///
+    /// 原来的写法是"在跑就 activate、没跑才 openApplication"。从 macOS 14
+    /// 起, 后台进程调 NSRunningApplication.activate() 会被系统**静默忽略**
+    /// —— 而我们是 LSUIElement, 永远不在前台, 所以永远命中这条限制。
+    /// 症状极具迷惑性: 动作返回 ok、日志干净、什么错都不报, 就是不切。
+    /// (实测 macOS 26: activate 无效, `open -b` 立刻生效。)
+    ///
+    /// openApplication 走的是 LaunchServices, 由系统代为激活, 不受这条限制;
+    /// 对已经在跑的 app 它就是"激活", 不会开新实例。
+    ///
+    /// 这条路径同时喂着手机端的「切过去」和手柄的「切到某个 app」, 两边都靠它。
     func focus(_ bundleID: String) {
-        if let app = NSWorkspace.shared.runningApplications
-            .first(where: { $0.bundleIdentifier == bundleID }) {
-            app.activate(options: [.activateAllWindows])
-        } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-            NSWorkspace.shared.openApplication(at: url, configuration: .init())
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            // 拿不到路径(没装/被删了)。退回 activate() 聊胜于无 ——
+            // 我们自己恰好在前台时它还是有效的。
+            NSWorkspace.shared.runningApplications
+                .first { $0.bundleIdentifier == bundleID }?
+                .activate(options: [.activateAllWindows])
+            return
+        }
+        let cfg = NSWorkspace.OpenConfiguration()
+        cfg.activates = true
+        cfg.createsNewApplicationInstance = false
+        cfg.addsToRecentItems = false
+        NSWorkspace.shared.openApplication(at: url, configuration: cfg) { app, _ in
+            // 补一刀, 把这个 app 的其余窗口也带上来 —— openApplication 只保证
+            // 主窗口到前面。此时目标 app 已经是前台了, activate 不再受限制。
+            // 失败也无所谓, 切换本身上一步已经完成。
+            DispatchQueue.main.async { app?.activate(options: [.activateAllWindows]) }
         }
     }
 
