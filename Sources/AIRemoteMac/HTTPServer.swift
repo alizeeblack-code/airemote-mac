@@ -264,7 +264,8 @@ final class HTTPServer: ObservableObject {
             let turns = SessionTranscript.recent(tool: tool, project: project)
             let items = turns.map {
                 "{\"role\":\(jsonStr($0.role)),\"text\":\(jsonStr($0.text)),"
-                + "\"tools\":[\($0.tools.map(jsonStr).joined(separator: ","))]}"
+                + "\"tools\":[\($0.tools.map(jsonStr).joined(separator: ","))],"
+                + "\"truncated\":\($0.truncated)}"
             }.joined(separator: ",")
             return txt("{\"project\":\(jsonStr(project)),\"turns\":[\(items)]}",
                        "application/json; charset=utf-8")

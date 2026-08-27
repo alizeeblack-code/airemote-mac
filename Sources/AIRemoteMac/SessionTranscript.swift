@@ -19,6 +19,11 @@ enum SessionTranscript {
         let role: String
         let text: String
         let tools: [String]   // 用了哪些工具(**带重复**, 手机端自己聚成 "Bash ×7")
+        /// 正文被 maxChars 砍过。
+        ///
+        /// 手机端要**明说**"这里还有更多", 而不是只留一个省略号 —— 省略号
+        /// 跟在半截代码块后面, 看起来就是渲染坏了(这条是用户实际反馈的)。
+        let truncated: Bool
     }
 
     /// 最多返回几段**有正文的**回复。
@@ -29,9 +34,16 @@ enum SessionTranscript {
     private static let maxTextTurns = 4
     /// 一条工具摘要里最多列几个 —— 一轮跑几十个工具是常事, 全给会撑爆 JSON。
     private static let maxToolsPerRun = 40
-    /// 单条最多多少字 —— 有的回复几千字, 全塞进 JSON 会把 /state 之外的
-    /// 这个接口撑得很慢, 而手机上也读不完。
-    private static let maxChars = 1200
+    /// 单条最多多少字。
+    ///
+    /// ⚠️ 原来是 1200, **太小了**。扫本机 792 条真实回复: 中位数只有 68 字,
+    /// 但 p95 就到 1345、最长 4028 —— 也就是说恰恰是那些"写得最详细、最值得
+    /// 你看"的回复会被腰斩, 而且截断点经常落在代码块中间, 看起来像 app 坏了。
+    /// 6000 覆盖全部样本。
+    ///
+    /// 别担心体积: 4 段 × 6000 字撑死 24KB, 走的还是局域网, 而按中位数算
+    /// 实际负载只有几百字节。
+    private static let maxChars = 6000
 
     // MARK: - 缓存
 
@@ -94,16 +106,46 @@ enum SessionTranscript {
 
     // MARK: - 读文件尾
 
-    /// 只读尾部。会话文件动辄几 MB, 而我们只要最后几轮。
-    private static func tailLines(_ url: URL, bytes: Int = 512 * 1024) -> [String] {
+    /// 尾部窗口逐级放大。
+    ///
+    /// ⚠️ 固定读 512K 是**不够的**, Codex 上会直接读空。实测某个
+    /// rollout 文件 285MB, 里面 item_completed 7737 条、token_count 4252 条、
+    /// reasoning 3866 条, 而真正的对话(message)只有 586 条 —— 最后 512K 里
+    /// 一条 message 都没有, 详情页就显示"读不了这个会话"。
+    ///
+    /// 所以攒不够就往前多读一截。上限 32MB: 再大就该认命了, 总不能为了看
+    /// 最后几句话把 285MB 全解一遍。
+    private static let tailSteps = [512 * 1024, 4 * 1024 * 1024, 32 * 1024 * 1024]
+
+    /// 只读尾部。
+    ///
+    /// ⚠️ `keep` 是**解 JSON 之前**的字符串预筛。32MB 尾部有几十万行,
+    /// 每行都 JSONSerialization 一遍要好几秒; 而 99% 的行是工具输出,
+    /// 一个 contains 就能筛掉, 代价可以忽略。
+    private static func tailLines(_ url: URL, bytes: Int, keep: String) -> [String] {
         guard let fh = try? FileHandle(forReadingFrom: url) else { return [] }
         defer { try? fh.close() }
         let size = (try? fh.seekToEnd()) ?? 0
         try? fh.seek(toOffset: size > UInt64(bytes) ? size - UInt64(bytes) : 0)
         let data = (try? fh.readToEnd()) ?? Data()
         return String(decoding: data, as: UTF8.self)
-            .split(separator: "\n").map(String.init)
-            .filter { $0.hasPrefix("{") }   // 从中间截断的第一行多半是残的
+            .split(separator: "\n").lazy
+            // 从中间截断的第一行多半是残的
+            .filter { $0.hasPrefix("{") && $0.contains(keep) }
+            .map(String.init)
+    }
+
+    /// 逐级放大尾部窗口跑 parse, 攒够 maxTextTurns 段正文就停。
+    private static func grow(_ url: URL, keep: String,
+                             _ parse: ([String]) -> [Turn]) -> [Turn] {
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        var best: [Turn] = []
+        for bytes in tailSteps {
+            best = parse(tailLines(url, bytes: bytes, keep: keep))
+            if best.filter({ !$0.text.isEmpty }).count >= maxTextTurns { break }
+            if bytes >= size { break }      // 整个文件都读完了, 再放大没意义
+        }
+        return condense(best)
     }
 
     private static func obj(_ line: String) -> [String: Any]? {
@@ -111,9 +153,10 @@ enum SessionTranscript {
         return (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
     }
 
-    private static func clip(_ s: String) -> String {
+    private static func clip(_ s: String) -> (text: String, cut: Bool) {
         let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.count > maxChars ? String(t.prefix(maxChars)) + "…" : t
+        guard t.count > maxChars else { return (t, false) }
+        return (String(t.prefix(maxChars)), true)
     }
 
     /// 把原始轮次压成"值得看的那几段"。
@@ -136,7 +179,8 @@ enum SessionTranscript {
             }
             if !pending.isEmpty {
                 out.append(Turn(role: "tools", text: "",
-                                tools: Array(pending.prefix(maxToolsPerRun))))
+                                tools: Array(pending.prefix(maxToolsPerRun)),
+                                truncated: false))
                 pending = []
             }
             out.append(t)
@@ -146,7 +190,8 @@ enum SessionTranscript {
         // 整段都是工具调用(会话正跑在半路上)时, 这一条就是全部内容, 不能丢
         if !pending.isEmpty, textCount < maxTextTurns {
             out.append(Turn(role: "tools", text: "",
-                            tools: Array(pending.prefix(maxToolsPerRun))))
+                            tools: Array(pending.prefix(maxToolsPerRun)),
+                            truncated: false))
         }
         return out.reversed()
     }
@@ -160,8 +205,10 @@ enum SessionTranscript {
     // (last-prompt / mode / custom-title / file-history-snapshot), 只有 3 个
     // 是对话记录。必须先过滤。
     private static func parseClaude(_ url: URL) -> [Turn] {
+        // 预筛 "message": Claude 的对话记录一定有这个键, 工具输出行没有
+        grow(url, keep: "\"message\"") { lines in
         var turns: [Turn] = []
-        for line in tailLines(url) {
+        for line in lines {
             guard let r = obj(line),
                   let type = r["type"] as? String,
                   type == "user" || type == "assistant",
@@ -183,10 +230,12 @@ enum SessionTranscript {
                 }
             }
             let clean = clip(text)
-            guard !clean.isEmpty || !tools.isEmpty else { continue }
-            turns.append(Turn(role: type, text: clean, tools: tools))
+            guard !clean.text.isEmpty || !tools.isEmpty else { continue }
+            turns.append(Turn(role: type, text: clean.text, tools: tools,
+                              truncated: clean.cut))
         }
-        return condense(turns)
+        return turns
+        }
     }
 
     // MARK: - Codex
@@ -197,8 +246,11 @@ enum SessionTranscript {
     // ⚠️ role 有 developer —— 那是注入的系统指令(skills 说明之类), 不是对话,
     // 必须滤掉, 否则详情页第一屏全是给模型看的提示词。
     private static func parseCodex(_ url: URL) -> [Turn] {
+        // 预筛 "message": 把 item_completed / token_count / reasoning 全挡在
+        // JSON 解析之外 —— 那是这个文件里 95% 的内容
+        grow(url, keep: "\"message\"") { lines in
         var turns: [Turn] = []
-        for line in tailLines(url) {
+        for line in lines {
             guard let r = obj(line),
                   let p = r["payload"] as? [String: Any],
                   p["type"] as? String == "message",
@@ -210,9 +262,11 @@ enum SessionTranscript {
                 if let t = b["text"] as? String { text += t }
             }
             let clean = clip(text)
-            guard !clean.isEmpty else { continue }
-            turns.append(Turn(role: role, text: clean, tools: []))
+            guard !clean.text.isEmpty else { continue }
+            turns.append(Turn(role: role, text: clean.text, tools: [],
+                              truncated: clean.cut))
         }
-        return condense(turns)
+        return turns
+        }
     }
 }
