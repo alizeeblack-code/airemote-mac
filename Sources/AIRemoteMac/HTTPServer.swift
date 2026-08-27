@@ -267,7 +267,11 @@ final class HTTPServer: ObservableObject {
             let project = comps[3].removingPercentEncoding ?? comps[3]
             let path = SessionTranscript.newestTranscript(tool: tool, project: project)?.path ?? ""
             if SessionJump.jump(tool: tool, transcript: path) {
-                return txt("{\"ok\":true,\"how\":\"session\"}",
+                // 切过去还得把光标放进输入框, 否则人还要伸手点一下才能打字。
+                // focused 如实回报: 失败时手机端至少知道"过去了但要自己点一下",
+                // 而不是以为一切正常。
+                let focused = AXFocus.focusInput(bundleID: BundleID.claude)
+                return txt("{\"ok\":true,\"how\":\"session\",\"focused\":\(focused)}",
                            "application/json; charset=utf-8")
             }
             // 退回切 app。宿主取和 /state 同一套判据, 免得两处不一致。

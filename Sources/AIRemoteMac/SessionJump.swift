@@ -40,10 +40,10 @@ enum SessionJump {
         // 默认就带激活; NSWorkspace 的默认值不一样。)
         let cfg = NSWorkspace.OpenConfiguration()
         cfg.activates = true
-        NSWorkspace.shared.open(url, configuration: cfg) { app, _ in
-            // 和 AppContext.focus 一样补一刀, 把其余窗口带上来
-            DispatchQueue.main.async { app?.activate(options: [.activateAllWindows]) }
-        }
+        NSWorkspace.shared.open(url, configuration: cfg, completionHandler: nil)
+
+        // 聚焦输入框是调用方的事(见 HTTPServer 的 /session/goto) ——
+        // 那里要把结果回给手机, 放这儿就只能静默成功或失败。
         return true
     }
 
