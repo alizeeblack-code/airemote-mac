@@ -51,7 +51,7 @@ enum SessionJump {
     ///
     /// 格式必须校验: 桌面版那边对非 UUID 的值是**静默拒绝**的(只写一条 warn),
     /// 我们这边却会以为跳成功了。不如自己先拦住, 退回切 app 至少有反应。
-    private static func sessionID(from transcript: String) -> String? {
+    static func sessionID(from transcript: String) -> String? {
         let name = ((transcript as NSString).lastPathComponent as NSString)
             .deletingPathExtension
         guard isUUID(name) else { return nil }

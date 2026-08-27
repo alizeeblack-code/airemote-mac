@@ -113,4 +113,35 @@ enum AXFocus {
         }
         return out
     }
+
+    // MARK: - 侧栏
+
+    /// 点侧栏上标题为 `title` 的那一行。
+    ///
+    /// 侧栏每行是个 AXButton, 标签形如 `<状态> <标题>` ——
+    /// `Running <标题>` / `Idle <标题>` / `Awaiting input <标题>` /
+    /// `Unread response <标题>`。判据用**以标题结尾**, 不去枚举状态词:
+    /// 状态是会变的(而且还会新增), 枚举必然漏。
+    ///
+    /// ⚠️ 侧栏是个虚拟滚动列表, **只有渲染出来的行才在 AX 树里**。目标会话
+    /// 滚出可视区就点不着 —— 返回 false, 调用方退回只切 app。好在按活跃度
+    /// 排序, 你会去跳的那些本来就在最上面。
+    static func clickSidebarRow(pid: pid_t, title: String) -> Bool {
+        guard !title.isEmpty else { return false }
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        let deadline = Date().addingTimeInterval(2.5)
+        repeat {
+            for el in descendants(app) {
+                guard string(el, kAXRoleAttribute) == kAXButtonRole,
+                      let p = position(el), p.x < 420 else { continue }   // 只看左侧栏
+                let label = string(el, kAXTitleAttribute)
+                    ?? string(el, kAXDescriptionAttribute) ?? ""
+                guard label == title || label.hasSuffix(" " + title) else { continue }
+                return AXUIElementPerformAction(el, kAXPressAction as CFString) == .success
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        } while Date() < deadline
+        return false
+    }
 }

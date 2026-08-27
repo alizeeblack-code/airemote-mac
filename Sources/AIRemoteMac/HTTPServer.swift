@@ -266,6 +266,23 @@ final class HTTPServer: ObservableObject {
             let tool: SessionScan.Tool = comps[2].lowercased() == "codex" ? .codex : .claude
             let project = comps[3].removingPercentEncoding ?? comps[3]
             let path = SessionTranscript.newestTranscript(tool: tool, project: project)?.path ?? ""
+            // ⚠️ 顺序很重要: **先看桌面版里有没有现成的条目**。
+            //
+            // claude://resume 干的是"把 CLI transcript 导入成一条新的桌面会话",
+            // 会话本来就在桌面版里跑着的话就会多出一条重复项 —— 而且是同一份
+            // transcript 上的第二个 shell。所以有现成的就去点侧栏那一行,
+            // deep link 只留给"确实还没进过桌面版"的会话(多半跑在终端里)。
+            if let s = ClaudeDesktop.existing(cliID: SessionJump.sessionID(from: path) ?? ""),
+               let a = NSWorkspace.shared.runningApplications
+                   .first(where: { $0.bundleIdentifier == BundleID.claude }) {
+                AppContext.shared.focus(BundleID.claude)
+                let hit = AXFocus.clickSidebarRow(pid: a.processIdentifier, title: s.title)
+                let focused = AXFocus.focusInput(bundleID: BundleID.claude)
+                // 点不中就退化成"只切了 app" —— 如实说, 别让手机端以为切到会话了
+                return txt("{\"ok\":true,\"how\":\(jsonStr(hit ? "existing" : "app")),"
+                           + "\"focused\":\(focused)}",
+                           "application/json; charset=utf-8")
+            }
             if SessionJump.jump(tool: tool, transcript: path) {
                 // 切过去还得把光标放进输入框, 否则人还要伸手点一下才能打字。
                 // focused 如实回报: 失败时手机端至少知道"过去了但要自己点一下",
