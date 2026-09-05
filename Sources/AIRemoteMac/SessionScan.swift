@@ -62,6 +62,10 @@ enum SessionScan {
         /// hook 每条 payload 都带 transcript_path, 而且整个会话不变;
         /// 拿 cwd 当键会错(会话里 cd 一下 cwd 就变了)。不输出给手机端。
         let key: String
+        /// 同项目有多个会话时的区分标签(首条用户消息的开头)。
+        /// **只有同项目确实撞车时才填** —— 独一份的会话不需要副标题,
+        /// 无差别地加只会让卡片变吵。
+        var hint: String = ""
     }
 
     /// 项目路径缓存: transcript 路径 -> cwd。cwd 要读文件内容, 不能每 1.5s 轮询都读。
@@ -87,17 +91,76 @@ enum SessionScan {
         }
     }
 
-    /// 最近活跃的会话, 每个 (工具, 项目) 只留最新的一条 ——
-    /// 同项目开两个会话时显示两行一模一样的名字只是噪音。
+    /// 最近活跃的会话。
+    ///
+    /// ⚠️ **不再按项目去重**。原来每个 (工具, 项目) 只留最新一条, 理由是
+    /// "同项目两张卡名字一模一样只是噪音" —— 但代价是同一个目录下开第二个
+    /// 会话就**静默消失**, 用户完全无从知道它去哪了(实测同一个目录下开两个
+    /// 会话, 手机上只有一张卡)。噪音是小问题, 会话找不到是真问题。
+    ///
+    /// 改成全部返回, 并且只在**同项目确实撞车时**给每条补一个区分标签
+    /// (见 hint) —— 独一份的会话保持原样, 不平白多一行副标题。
+    ///
+    /// limit 同时从 5 放宽到 10: 不去重之后条数自然变多, 沿用 5 会把
+    /// 刚解决的问题又以另一种形式带回来。
     static func recent(tools: Set<Tool> = [.claude, .codex],
-                       limit: Int = 5, within: TimeInterval = 8 * 3600) -> [Entry] {
+                       limit: Int = 10, within: TimeInterval = 8 * 3600) -> [Entry] {
         lock.lock()
         defer { lock.unlock() }
         var all: [(Entry, Date)] = []
         if tools.contains(.claude) { all += scanClaude(within: within) }
         if tools.contains(.codex)  { all += scanCodex(within: within) }
-        return all.sorted { $0.1 > $1.1 }.prefix(limit).map(\.0)
+        var out = all.sorted { $0.1 > $1.1 }.prefix(limit).map(\.0)
+
+        // 同 (工具, 项目名) 出现多次的才补 hint。
+        var seen: [String: Int] = [:]
+        for e in out { seen["\(e.tool)/\(e.name)", default: 0] += 1 }
+        for i in out.indices where seen["\(out[i].tool)/\(out[i].name)", default: 0] > 1 {
+            out[i].hint = firstUserLine(URL(fileURLWithPath: out[i].key))
+        }
+        return out
     }
+
+    /// 首条用户消息的开头, 用作同项目多会话的区分标签。
+    ///
+    /// 和 projectCwd 一样只读文件头 —— 轮询是 1.5s 一次, 不能整文件解析。
+    /// 读不出来就返回空串, 调用方按"没有副标题"处理, 不影响卡片本身。
+    private static func firstUserLine(_ url: URL) -> String {
+        if let c = hintCache[url.path] { return c }
+        var out = ""
+        if let fh = try? FileHandle(forReadingFrom: url) {
+            let head = fh.readData(ofLength: 64 * 1024)
+            try? fh.close()
+            for line in String(decoding: head, as: UTF8.self)
+                .split(separator: "\n").prefix(40) {
+                guard let d = line.data(using: .utf8),
+                      let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+                      (obj["type"] as? String) == "user",
+                      let msg = obj["message"] as? [String: Any] else { continue }
+                // ⚠️ content 有两种形状: 纯文本会话是 String, 带附件/工具结果的
+                // 是 [{type:"text",text:...}, …]。只按后者找会永远取不到 ——
+                // 实测普通的一句话提问就是前者。
+                var t = ""
+                if let str = msg["content"] as? String {
+                    t = str
+                } else if let arr = msg["content"] as? [[String: Any]] {
+                    t = arr.first { ($0["type"] as? String) == "text" }
+                            .flatMap { $0["text"] as? String } ?? ""
+                }
+                guard !t.isEmpty else { continue }
+                // 命令回显和系统注入不是人打的字, 拿来当标签毫无区分度
+                if t.hasPrefix("<") || t.hasPrefix("Caveat:") { continue }
+                out = String(t.replacingOccurrences(of: "\n", with: " ")
+                              .trimmingCharacters(in: .whitespaces).prefix(40))
+                break
+            }
+        }
+        hintCache[url.path] = out
+        return out
+    }
+
+    /// 首条用户消息不会变, 缓存住 —— 否则每次轮询都要读 64KB × N 个文件。
+    private static var hintCache: [String: String] = [:]
 
     // MARK: - Claude Code
 
@@ -108,22 +171,20 @@ enum SessionScan {
             at: root, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
         else { return [] }
 
-        var newest: [String: (URL, Date)] = [:]
+        // 每个 transcript 各算一条 —— 不再按项目目录折叠(见 recent 的说明)。
+        var out: [(Entry, Date)] = []
         for dir in dirs {
             guard let files = try? fm.contentsOfDirectory(
                 at: dir, includingPropertiesForKeys: [.contentModificationDateKey])
             else { continue }
             for f in files where f.pathExtension == "jsonl" {
                 guard let m = modified(f), fresh(m, within) else { continue }
-                let key = dir.lastPathComponent
-                if let cur = newest[key], cur.1 >= m { continue }
-                newest[key] = (f, m)
+                // ⚠️ url 必须传: hook 状态是按 transcript 路径关联的, 不传就永远对不上。
+                out.append((entry(cwd: projectCwd(f), fallbackName: dir.lastPathComponent,
+                                  at: m, tool: .claude, url: f), m))
             }
         }
-        return newest.map { key, v in
-            // ⚠️ url 必须传: hook 状态是按 transcript 路径关联的, 不传就永远对不上。
-            (entry(cwd: projectCwd(v.0), fallbackName: key, at: v.1, tool: .claude, url: v.0), v.1)
-        }
+        return out
     }
 
     // MARK: - Codex
@@ -136,17 +197,15 @@ enum SessionScan {
             at: root, includingPropertiesForKeys: [.contentModificationDateKey],
             options: .skipsHiddenFiles) else { return [] }
 
-        var newest: [String: (URL, Date)] = [:]
+        var out: [(Entry, Date)] = []
         for case let f as URL in walker where f.pathExtension == "jsonl" {
             guard let m = modified(f), fresh(m, within) else { continue }
             let cwd = projectCwd(f)                   // 在 payload 里, 下面递归找
-            if let cur = newest[cwd], cur.1 >= m { continue }
-            newest[cwd] = (f, m)
+            out.append((entry(cwd: cwd,
+                              fallbackName: f.deletingLastPathComponent().lastPathComponent,
+                              at: m, tool: .codex, url: f), m))
         }
-        return newest.map { cwd, v in
-            (entry(cwd: cwd, fallbackName: v.0.deletingLastPathComponent().lastPathComponent,
-                   at: v.1, tool: .codex, url: v.0), v.1)
-        }
+        return out
     }
 
     // MARK: - 公共

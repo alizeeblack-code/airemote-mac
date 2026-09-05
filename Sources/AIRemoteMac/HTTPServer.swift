@@ -528,6 +528,15 @@ final class HTTPServer: ObservableObject {
             return "{\"name\":\(jsonStr(s.name)),\"ageSec\":\(s.ageSec),"
                 + "\"busy\":\(s.busy),\"status\":\(jsonStr(s.status.rawValue)),"
                 + "\"tool\":\(jsonStr(s.tool.label)),\"goto\":\(canGo),"
+                // sid: 手机端 ForEach 的稳定唯一键。
+                // ⚠️ 不去重之后同项目会出现同名多条, 而手机端原来拿
+                // "tool/name" 当 Identifiable.id —— 重复 id 会让 SwiftUI 丢行,
+                // 那样 Mac 端发了两条也白发。
+                // 发哈希而不是 transcript 路径: 路径一贯不出机器(见 Entry.key)。
+                + "\"sid\":\(jsonStr(String(format: "%08x", abs(s.key.hashValue) % 0xFFFFFFF))),"
+                // hint 只在同项目多会话时非空。老手机端不认这个键, 忽略即可 ——
+                // 多一个键不影响它解析(协议一贯只增不改)。
+                + "\"hint\":\(jsonStr(s.hint)),"
                 + "\"appID\":\(jsonStr(s.appID))}"
         }.joined(separator: ",")
         return """
